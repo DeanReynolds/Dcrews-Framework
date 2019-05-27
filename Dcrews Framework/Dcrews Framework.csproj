@@ -44,7 +44,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LiteNetLib\NetBitWriter.cs" />
+    <Compile Include="BitPacker\BitStream.cs" />
+    <Compile Include="BitPacker\BitWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPacket.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

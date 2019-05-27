@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace Dcrew.Framework.LiteNetLib
+namespace Dcrew.Framework.BitPacker
 {
-    public static class NetBitWriter
+    public static class BitWriter
     {
         public static void WriteByte(byte source, int numberOfBits, byte[] destination, int destBitOffset)
         {
