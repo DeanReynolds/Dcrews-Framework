@@ -44,7 +44,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LiteNetLib\NetBitPacket.cs" />
     <Compile Include="BitPacker\BitPackedDataReader.cs" />
     <Compile Include="BitPacker\BitPackedDataWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataWriter.cs" />
