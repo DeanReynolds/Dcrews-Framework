@@ -19,4 +19,4 @@ using System.Runtime.InteropServices;
 //      Minor Version
 //      Bug Fixes
 //
-[assembly: AssemblyVersion("0.3.1")]
+[assembly: AssemblyVersion("0.3.2")]

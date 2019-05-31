@@ -196,14 +196,11 @@ namespace Dcrew.Framework.BitPacker
 
         public byte[] Data => _data;
 
-        public int LengthBits => _lengthBits - 3;
-        public int LengthBytes => (_lengthBits - 3 + 7) >> 3;
-        public int ReadBits => _readBits - 3;
-        public bool EndOfData => ReadBits >= LengthBits;
+        public int LengthBits => _lengthBits;
+        public int LengthBytes => (_lengthBits + 7) >> 3;
 
         protected byte[] _data;
         protected int _lengthBits;
-        protected int _readBits;
 
         public void Write(bool value)
         {
