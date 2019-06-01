@@ -51,6 +51,8 @@
     <Compile Include="BitPacker\BitPackedDataWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataReader.cs" />
+    <Compile Include="MonoGame\Interfaces\IAABB.cs" />
+    <Compile Include="MonoGame\QuadTree.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup />
