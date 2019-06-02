@@ -6,46 +6,34 @@ namespace Dcrew.Framework
     {
         const int _overAllocateAmount = 4;
 
-        public NewObjEvent NewObj;
-        public ToggleEvent OnActivate,
-            OnDeactivate;
+        public ToggleEvent WakeObj,
+            ResetObj;
 
         public delegate T NewObjEvent();
         public delegate void ToggleEvent(T obj);
 
         readonly Queue<T> _inactive;
         readonly HashSet<T> _active;
+        readonly NewObjEvent _newObj;
 
         public ObjectPool(NewObjEvent newObj)
         {
-            NewObj = newObj;
+            _newObj = newObj;
             _inactive = new Queue<T>();
             _active = new HashSet<T>();
         }
-        public ObjectPool(NewObjEvent newObj, ToggleEvent onActivate, ToggleEvent onDeactivate) : this(newObj)
-        {
-            OnActivate = onActivate;
-            OnDeactivate = onDeactivate;
-        }
         public ObjectPool(NewObjEvent newObj, int initialCapacity)
         {
-            NewObj = newObj;
+            _newObj = newObj;
             _inactive = new Queue<T>(initialCapacity);
             _active = new HashSet<T>(initialCapacity);
             Expand(initialCapacity);
         }
-        public ObjectPool(NewObjEvent newObj, ToggleEvent onActivate, ToggleEvent onDeactivate, int initialCapacity) : this(newObj, initialCapacity)
-        {
-            OnActivate = onActivate;
-            OnDeactivate = onDeactivate;
-        }
 
         public void Expand(int amount)
         {
-            if (NewObj == null)
-                return;
             for (int i = 0; i < amount; i++)
-                _inactive.Enqueue(NewObj());
+                _inactive.Enqueue(_newObj());
         }
 
         public T Activate()
@@ -54,7 +42,7 @@ namespace Dcrew.Framework
                 Expand(_overAllocateAmount);
             var obj = _inactive.Dequeue();
             _active.Add(obj);
-            OnActivate?.Invoke(obj);
+            WakeObj?.Invoke(obj);
             return obj;
         }
         public bool Deactivate(T obj)
@@ -63,7 +51,7 @@ namespace Dcrew.Framework
                 return false;
             _active.Remove(obj);
             _inactive.Enqueue(obj);
-            OnDeactivate?.Invoke(obj);
+            ResetObj?.Invoke(obj);
             return true;
         }
     }
