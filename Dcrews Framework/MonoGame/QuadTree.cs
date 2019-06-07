@@ -27,7 +27,6 @@ namespace Dcrew.Framework.MonoGame
             }
             return false;
         }
-
         public bool Remove(T item)
         {
             if (!_stored.ContainsKey(item))
@@ -35,6 +34,19 @@ namespace Dcrew.Framework.MonoGame
             if (_stored[item].Remove(item))
             {
                 _stored.Remove(item);
+                return true;
+            }
+            return false;
+        }
+
+        public bool Update(T item)
+        {
+            if (!_stored.ContainsKey(item))
+                return false;
+            if (_stored[item].Remove(item))
+            {
+                _stored.Remove(item);
+                Add(item);
                 return true;
             }
             return false;
