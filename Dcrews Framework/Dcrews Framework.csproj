@@ -53,6 +53,7 @@
     <Compile Include="LiteNetLib\NetBitPackedDataReader.cs" />
     <Compile Include="MonoGame\Interfaces\IAABB.cs" />
     <Compile Include="MonoGame\QuadTree.cs" />
+    <Compile Include="MonoGame\SpatialHash.cs" />
     <Compile Include="ObjectPool.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
