@@ -1,8 +1,7 @@
-﻿using Dcrew.Framework.MonoGame.Interfaces;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 
-namespace Dcrew.Framework.MonoGame
+namespace Dcrew.Framework
 {
     public class QuadTree<T> where T : IAABB
     {
@@ -94,30 +93,38 @@ namespace Dcrew.Framework.MonoGame
 
             public Node Add(T item)
             {
-                if (_nodes.Count == 0)
-                    CreateSubNodes();
-                foreach (var node in _nodes)
-                    if (node.Bounds.Contains(item.AABB))
+                if (_items.Count > 4 || _nodes.Count > 0)
+                {
+                    if (_nodes.Count == 0)
                     {
-                        Node node2;
-                        if ((node2 = node.Add(item)) != null)
-                            return node2;
-                        break;
+                        CreateSubNodes();
+                        foreach (var oItem in _items)
+                            Add(oItem);
+                        _items.Clear();
                     }
+                    foreach (var node in _nodes)
+                        if (node.Bounds.Contains(item.AABB))
+                        {
+                            Node node2;
+                            if ((node2 = node.Add(item)) != null)
+                                return node2;
+                            break;
+                        }
+                }
                 _items.Add(item);
                 return this;
             }
-
             public bool Remove(T item)
             {
                 if (_items.Contains(item))
                 {
                     _items.Remove(item);
+                    if (AllCount == 0)
+                        _nodes.Clear();
                     return true;
                 }
                 return false;
             }
-
             public HashSet<T> Query(Rectangle area)
             {
                 var items = new HashSet<T>();
@@ -144,7 +151,7 @@ namespace Dcrew.Framework.MonoGame
 
             void CreateSubNodes()
             {
-                if ((Bounds.Height * Bounds.Width) <= 1024)
+                if (Bounds.Height * Bounds.Width <= 1024)
                     return;
                 var halfWidth = Bounds.Width / 2;
                 var halfHeight = Bounds.Height / 2;

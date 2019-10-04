@@ -52,10 +52,10 @@
     <Compile Include="Camera.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataReader.cs" />
-    <Compile Include="MonoGame\Interfaces\IAABB.cs" />
-    <Compile Include="MonoGame\QuadTree.cs" />
-    <Compile Include="MonoGame\SpatialHash.cs" />
+    <Compile Include="Interfaces\IAABB.cs" />
     <Compile Include="FastRandom.cs" />
+    <Compile Include="QuadTree.cs" />
+    <Compile Include="SpatialHash.cs" />
     <Compile Include="ObjectPool.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

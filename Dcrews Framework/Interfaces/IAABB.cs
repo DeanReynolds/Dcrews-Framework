@@ -1,6 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 
-namespace Dcrew.Framework.MonoGame.Interfaces
+namespace Dcrew.Framework
 {
     public interface IAABB
     {
