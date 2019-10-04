@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="BitPacker\BitPackedDataReader.cs" />
     <Compile Include="BitPacker\BitPackedDataWriter.cs" />
+    <Compile Include="Camera.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataReader.cs" />
     <Compile Include="MonoGame\Interfaces\IAABB.cs" />
