@@ -53,6 +53,7 @@
     <Compile Include="Heap.cs" />
     <Compile Include="MGGame.cs" />
     <Compile Include="Camera.cs" />
+    <Compile Include="Input.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataWriter.cs" />
     <Compile Include="LiteNetLib\NetBitPackedDataReader.cs" />
     <Compile Include="MGMath.cs" />
