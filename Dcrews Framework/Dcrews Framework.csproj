@@ -58,6 +58,7 @@
     <Compile Include="FastRandom.cs" />
     <Compile Include="QuadTree.cs" />
     <Compile Include="SpatialHash.cs" />
+    <Compile Include="SpriteBatchExtensions.cs" />
     <Compile Include="ObjectPool.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
