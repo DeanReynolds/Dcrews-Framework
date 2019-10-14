@@ -1,7 +1,8 @@
 ﻿using Dcrew.Framework.BitPacker;
+using Microsoft.Xna.Framework;
 using System;
 
-namespace Dcrew.Framework.LiteNetLib
+namespace LiteNetLib
 {
     public class NetBitPackedDataWriter : BitPackedDataWriter
     {
@@ -24,5 +25,7 @@ namespace Dcrew.Framework.LiteNetLib
 
         public new int LengthBits => _lengthBits - 3;
         public new int LengthBytes => (_lengthBits - 3 + 7) >> 3;
+
+        public void WriteAngle(float value, int bits) => Write((uint)MGMath.PackAngle(value, bits), bits);
     }
 }

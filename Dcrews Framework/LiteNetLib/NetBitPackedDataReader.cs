@@ -1,8 +1,9 @@
 ﻿using Dcrew.Framework.BitPacker;
 using LiteNetLib.Utils;
+using Microsoft.Xna.Framework;
 using System;
 
-namespace Dcrew.Framework.LiteNetLib
+namespace LiteNetLib
 {
     public class NetBitPackedDataReader : BitPackedDataReader
     {
@@ -18,5 +19,7 @@ namespace Dcrew.Framework.LiteNetLib
         public new int LengthBits => _lengthBits - 3;
         public new int LengthBytes => (_lengthBits - 3 + 7) >> 3;
         public new int ReadBits => _readBits - 3;
+
+        public float ReadAngle(int bits) => MGMath.UnpackAngle((int)ReadUInt(bits), bits);
     }
 }
