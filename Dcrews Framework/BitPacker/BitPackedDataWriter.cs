@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Dcrew.Framework.BitPacker
 {
@@ -268,6 +269,19 @@ namespace Dcrew.Framework.BitPacker
             Write(rvalue, numBits);
             return numBits;
         }
+        public int WriteVariableUInt(uint value)
+        {
+            var retval = 1;
+            var num1 = value;
+            while (num1 >= 0x80)
+            {
+                Write((byte)(num1 | 0x80));
+                num1 = num1 >> 7;
+                retval++;
+            }
+            Write((byte)num1);
+            return retval;
+        }
 
         public void Write(float source)
         {
@@ -321,6 +335,18 @@ namespace Dcrew.Framework.BitPacker
             Write(val);
         }
 
+        public void Write(string source)
+        {
+            if (string.IsNullOrEmpty(source))
+            {
+                WriteVariableUInt(0);
+                return;
+            }
+            var bytes = Encoding.UTF8.GetBytes(source);
+            WriteVariableUInt((uint)bytes.Length);
+            Write(bytes);
+        }
+
         protected void EnsureSize(int bits)
         {
             var byteLen = ((bits + 7) >> 3);
@@ -335,7 +361,6 @@ namespace Dcrew.Framework.BitPacker
         {
             [FieldOffset(0)]
             public float SingleValue;
-
             [FieldOffset(0)]
             public uint UIntValue;
         }

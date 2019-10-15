@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Dcrew.Framework.BitPacker
 {
@@ -260,6 +261,20 @@ namespace Dcrew.Framework.BitPacker
             var rvalue = ReadUInt(numBits);
             return (int)(min + rvalue);
         }
+        public uint ReadVariableUInt()
+        {
+            int num1 = 0,
+                num2 = 0;
+            while (_lengthBits - _readBits >= 8)
+            {
+                var num3 = ReadByte();
+                num1 |= (num3 & 0x7f) << num2;
+                num2 += 7;
+                if ((num3 & 0x80) == 0)
+                    return (uint)num1;
+            }
+            return (uint)num1;
+        }
 
         public float ReadFloat()
         {
@@ -348,9 +363,26 @@ namespace Dcrew.Framework.BitPacker
                 _readBits += 64;
                 return retval;
             }
-            var bytes = new byte[8];
-            ReadBytes(bytes, 0, 8);
-            return BitConverter.ToDouble(bytes, 0);
+            return BitConverter.ToDouble(ReadBytes(8), 0);
+        }
+
+        public string ReadString()
+        {
+            var byteLen = (int)ReadVariableUInt();
+            if (byteLen <= 0)
+                return string.Empty;
+            if ((ulong)(_lengthBits - _readBits) < ((ulong)byteLen * 8))
+            {
+				_readBits = _lengthBits;
+				return null;
+            }
+            if ((_readBits & 7) == 0)
+            {
+                var retval = Encoding.UTF8.GetString(_data, _readBits >> 3, byteLen);
+                _readBits += 8 * byteLen;
+                return retval;
+            }
+            return Encoding.UTF8.GetString(ReadBytes(byteLen), 0, byteLen);
         }
 
         [StructLayout(LayoutKind.Explicit)]
