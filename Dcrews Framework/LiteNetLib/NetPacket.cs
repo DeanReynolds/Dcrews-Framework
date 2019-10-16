@@ -254,6 +254,20 @@ namespace LiteNetLib
                 }
                 if (f.FieldType.IsClass || (f.FieldType.IsValueType && !f.FieldType.IsPrimitive && !f.FieldType.IsEnum) || IsTuple(f.FieldType))
                 {
+                    if (f.FieldType == typeof(MemoryStream))
+                    {
+                        MemoryStream ms;
+                        writes.Add((NetBitPackedDataWriter writer, object o) =>
+                        {
+                            ms = (MemoryStream)f.GetValue(o);
+                            ms.Position = 0;
+                            writer.Write((int)ms.Length);
+                            for (var j = 0; j < ms.Length; j++)
+                                writer.Write((byte)ms.ReadByte());
+                        });
+                        reads.Add((NetBitPackedDataReader reader, object o) => f.SetValue(o, new MemoryStream(reader.ReadBytes(reader.ReadInt()))));
+                        continue;
+                    }
                     if (f.FieldType == typeof(FileStream))
                     {
                         FileStream fs;
