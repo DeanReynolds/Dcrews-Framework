@@ -35,7 +35,7 @@
       <HintPath>..\packages\LiteNetLib.0.8.3.1\lib\net35\LiteNetLib.dll</HintPath>
     </Reference>
     <Reference Include="MonoGame.Framework, Version=3.7.1.189, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\IMAGWZII\packages\MonoGame.Framework.OpenGL.3.7.1.189\lib\net45\MonoGame.Framework.dll</HintPath>
+      <HintPath>..\packages\MonoGame.Framework.OpenGL.3.7.1.189\lib\net45\MonoGame.Framework.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -52,6 +52,7 @@
     <Compile Include="Interfaces\IHeapItem.cs" />
     <Compile Include="Heap.cs" />
     <Compile Include="LiteNetLib\Net.cs" />
+    <Compile Include="LiteNetLib\NetFile.cs" />
     <Compile Include="LiteNetLib\NetPacket.cs" />
     <Compile Include="LiteNetLib\NetPool.cs" />
     <Compile Include="MGGame.cs" />
@@ -70,7 +71,9 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 
 namespace LiteNetLib
 {
@@ -320,11 +321,96 @@ namespace LiteNetLib
                         });
                         continue;
                     }
+                    if (f.FieldType == typeof(NetFile))
+                    {
+                        NetFile fs;
+                        writes.Add((NetBitPackedDataWriter writer, object o) =>
+                        {
+                            fs = (NetFile)f.GetValue(o);
+                            if (NetServer.IsRunning)
+                            {
+                                writer.WriteRangedInt(0, 2, (int)fs.State);
+                                writer.Write(fs.Stream.Name.Replace($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\", ""));
+                                if (fs.State == NetFile.States.AWAITING_HASH)
+                                {
+                                    writer.Write(fs.MD5Hash.Length);
+                                    writer.Write(fs.MD5Hash);
+                                }
+                                else if (fs.State == NetFile.States.FILE_DIFFERENT)
+                                {
+                                    var bytes = new byte[fs.Stream.Length];
+                                    fs.Stream.Position = 0;
+                                    fs.Stream.Read(bytes, 0, bytes.Length);
+                                    writer.Write(bytes.Length);
+                                    writer.Write(bytes);
+                                }
+                                return;
+                            }
+                            if (fs == null)
+                                writer.WriteRangedInt(0, 2, (int)NetFile.States.FILE_DIFFERENT);
+                            else
+                                writer.WriteRangedInt(0, 2, (int)fs.State);
+                        });
+                        reads.Add((NetBitPackedDataReader reader, object o) =>
+                        {
+                            fs = (NetFile)f.GetValue(o);
+                            var state = (NetFile.States)reader.ReadRangedInt(0, 2);
+                            if (NetServer.IsRunning)
+                            {
+                                fs.State = state;
+                                return;
+                            }
+                            string filePath = reader.ReadString(),
+                                dir = $"{Path.GetDirectoryName(filePath)}\\",
+                                fileName = Path.GetFileName(filePath);
+                            if (state == NetFile.States.AWAITING_HASH)
+                            {
+                                var hash = reader.ReadBytes(reader.ReadInt());
+                                checkAuth:
+                                if (File.Exists(filePath))
+                                {
+                                    var fs2 = File.OpenRead(filePath);
+                                    var hashBytes2 = new byte[fs2.Length];
+                                    fs2.Read(hashBytes2, 0, hashBytes2.Length);
+                                    var hash2 = new MD5CryptoServiceProvider().ComputeHash(hashBytes2);
+                                    if (hash.SequenceEqual(hash2))
+                                    {
+                                        f.SetValue(o, new NetFile(fs2) { State = NetFile.States.IDENTICAL_FILE });
+                                        return;
+                                    }
+                                    fs2.Close();
+                                    fs2.Dispose();
+                                    fileName = $"_{fileName}";
+                                    filePath = $"{dir}\\{fileName}";
+                                    goto checkAuth;
+                                }
+                            }
+                            else if (state == NetFile.States.FILE_DIFFERENT)
+                            {
+                                checkAuth2:
+                                if (File.Exists(filePath))
+                                {
+                                    fileName = $"_{fileName}";
+                                    filePath = $"{dir}\\{fileName}";
+                                    goto checkAuth2;
+                                }
+                                var arr = reader.ReadBytes(reader.ReadInt());
+                                var fs2 = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                                fs2.Write(arr, 0, arr.Length);
+                                fs2.Flush();
+                                fs2.Close();
+                                fs2.Dispose();
+                                fs = new NetFile(File.OpenRead(filePath));
+                                f.SetValue(o, fs);
+                            }
+                        });
+                        continue;
+                    }
                     var fields2 = f.FieldType.GetFields().Where(x => x.IsPublic && !x.IsStatic).ToArray();
                     var (writes2, reads2) = GetProcessors(fields2);
                     for (var j = 0; j < fields2.Length; j++)
                     {
-                        var (w, r, f2) = (writes2[j], reads2[j], fields2[j]);
+                        var (w, r) = (writes2[j], reads2[j]);
                         writes.Add((NetBitPackedDataWriter writer, object o) => w(writer, f.GetValue(o)));
                         reads.Add((NetBitPackedDataReader reader, object o) => r(reader, f.GetValue(o)));
                     }

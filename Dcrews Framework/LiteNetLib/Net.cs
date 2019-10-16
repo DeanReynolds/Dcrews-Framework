@@ -199,11 +199,24 @@ namespace LiteNetLib
                             writer.WriteRangedInt(0, _packets.Count, 0);
                             writer.WriteRangedInt(0, _initialPacketBits, (int)INITIAL_PACKET.INITIAL_DATA);
                             writer.WriteRangedInt(0, _initialDataIDBits, (int)INITIAL_DATA_ID.DATA);
-                            var (packetID, writes, _, _) = _initialDataPacketInfo[packet.GetType()];
-                            writer.Write(packetID);
-                            writer.Write(i == InitialDataCount - 1);
-                            for (var j = 0; j < writes.Length; j++)
-                                writes[j](writer, packet);
+                            if (NetClient._initialDataPacketInfo.ContainsKey(packet.GetType()))
+                            {
+                                var (packetID, writes, _, _) = NetClient._initialDataPacketInfo[packet.GetType()];
+                                writer.Write(packetID);
+                                writer.Write(i == InitialDataCount - 1);
+                                writer.Write(i);
+                                writer.Write(true);
+                                for (var j = 0; j < writes.Length; j++)
+                                    writes[j](writer, packet);
+                            }
+                            else
+                            {
+                                var (packetID, writes, _, _) = _initialDataPacketInfo[packet.GetType()];
+                                writer.Write(packetID);
+                                writer.Write(i == InitialDataCount - 1);
+                                for (var j = 0; j < writes.Length; j++)
+                                    writes[j](writer, packet);
+                            }
                             peer.Send(writer.Data, DeliveryMethod.ReliableOrdered);
                         }
                     }
@@ -238,25 +251,52 @@ namespace LiteNetLib
                 if (packetID == 0)
                 {
                     Console.WriteLine($"Server received initial data from ID: {peerID}");
-                    var writer = new NetBitPackedDataWriter();
+                    var packetID2 = data.ReadRangedInt(0, NetClient._initialDataPackets.Count);
+                    if (packetID2 == 0)
                     {
-                        writer.WriteRangedInt(0, _packets.Count, 0);
-                        writer.WriteRangedInt(0, _initialPacketBits, (int)INITIAL_PACKET.PEER_JOIN);
-                        writer.WriteRangedInt(0, _maxPlayersIndex, peerID);
-                    }
-                    if (IsListen)
-                    {
-                        NetClient.InvokeOnPeerJoin(peerID);
-                        foreach (var p in _peers1.Values)
-                            p.Send(writer.Data, DeliveryMethod.ReliableOrdered);
+                        var writer = new NetBitPackedDataWriter();
+                        {
+                            writer.WriteRangedInt(0, _packets.Count, 0);
+                            writer.WriteRangedInt(0, _initialPacketBits, (int)INITIAL_PACKET.PEER_JOIN);
+                            writer.WriteRangedInt(0, _maxPlayersIndex, peerID);
+                        }
+                        if (IsListen)
+                        {
+                            NetClient.InvokeOnPeerJoin(peerID);
+                            foreach (var kv in _peerIDs)
+                                if (kv.Value != NetClient._selfID && kv.Value != peerID)
+                                    kv.Key.Send(writer.Data, DeliveryMethod.ReliableOrdered);
+                        }
+                        else
+                        {
+                            OnPeerJoin?.Invoke(peerID);
+                            _manager.SendToAll(writer.Data, DeliveryMethod.ReliableOrdered, peer);
+                        }
+                        _peers1.Add(peerID, peer);
+                        _peers2.Add(peerID, peer);
                     }
                     else
                     {
-                        OnPeerJoin?.Invoke(peerID);
-                        _manager.SendToAll(writer.Data, DeliveryMethod.ReliableOrdered, peer);
+                        var (_, _, reads, _) = NetClient._initialDataPacketInfo[NetClient._initialDataPackets[packetID2]];
+                        var i = data.ReadInt();
+                        var packet = InitialData[i];
+                        for (var j = 0; j < reads.Length; j++)
+                            reads[j](data, packet);
+                        var writer = new NetBitPackedDataWriter();
+                        {
+                            writer.WriteRangedInt(0, _packets.Count, 0);
+                            writer.WriteRangedInt(0, _initialPacketBits, (int)INITIAL_PACKET.INITIAL_DATA);
+                            writer.WriteRangedInt(0, _initialDataIDBits, (int)INITIAL_DATA_ID.DATA);
+                            var (packetID3, writes2, _, _) = _initialDataPacketInfo[packet.GetType()];
+                            writer.Write(packetID3);
+                            writer.Write(i == InitialData.Count - 1);
+                            writer.Write(i);
+                            writer.Write(false);
+                            for (var j = 0; j < writes2.Length; j++)
+                                writes2[j](writer, packet);
+                            peer.Send(writer.Data, DeliveryMethod.ReliableOrdered);
+                        }
                     }
-                    _peers1.Add(peerID, peer);
-                    _peers2.Add(peerID, peer);
                     return;
                 }
                 //Console.WriteLine($"Server received data: Packet ID: {id}");
@@ -304,8 +344,11 @@ namespace LiteNetLib
         internal static NetPeer _server;
         internal static int _selfID = -1;
 
-        internal static readonly IDictionary<int, Type> _packets = new Dictionary<int, Type>();
+        internal static readonly IDictionary<int, Type> _packets = new Dictionary<int, Type>(),
+            _initialDataPackets = new Dictionary<int, Type>();
         internal static readonly IDictionary<Type, (int ID, Action<NetBitPackedDataWriter, object>[] Writes, Action<NetBitPackedDataReader, object>[] Reads, NetPacket Instance, bool ServerShouldRelay)> _packetInfo = new Dictionary<Type, (int, Action<NetBitPackedDataWriter, object>[], Action<NetBitPackedDataReader, object>[], NetPacket, bool)>();
+        internal static readonly IDictionary<Type, (int ID, Action<NetBitPackedDataWriter, object>[] Writes, Action<NetBitPackedDataReader, object>[] Reads, NetPacket Instance)> _initialDataPacketInfo = new Dictionary<Type, (int, Action<NetBitPackedDataWriter, object>[], Action<NetBitPackedDataReader, object>[], NetPacket)>();
+        internal static IDictionary<Type, int> _packetStates = new Dictionary<Type, int>();
 
         static NetManager _manager;
 
@@ -319,6 +362,16 @@ namespace LiteNetLib
                 _packets.Add(id, t);
                 var (writes, reads) = GetProcessors(t.GetFields().Where(x => x.IsPublic && !x.IsStatic && x.GetCustomAttribute(typeof(ServerOnlySend)) == null).ToArray());
                 _packetInfo.Add(t, (id++, writes, reads, (NetPacket)Activator.CreateInstance(t), t.GetCustomAttribute(typeof(ServerNoRelay)) == null));
+            }
+            id = 1;
+            foreach (var t in Assembly.GetEntryAssembly().GetTypes().Where(x => x.IsClass && !x.IsAbstract && x.IsSubclassOf(typeof(NetPacket)) && x.GetCustomAttribute(typeof(InitialServerData)) != null))
+            {
+                var (writes, reads) = GetProcessors(t.GetFields().Where(x => x.IsPublic && !x.IsStatic && x.FieldType == typeof(NetFile)).ToArray());
+                if (writes.Length > 0)
+                {
+                    _initialDataPackets.Add(id, t);
+                    _initialDataPacketInfo.Add(t, (id++, writes, reads, (NetPacket)Activator.CreateInstance(t)));
+                }
             }
         }
 
@@ -411,9 +464,31 @@ namespace LiteNetLib
                             }
                             else
                             {
-                                Console.WriteLine($"Client received initial data: ID: {packetID2}");
                                 var t2 = NetServer._initialDataPackets[packetID2];
                                 var (_, _, reads2, instance2) = NetServer._initialDataPacketInfo[t2];
+                                if (_initialDataPacketInfo.ContainsKey(t2))
+                                {
+                                    var index = inData.ReadInt();
+                                    var isInit = inData.ReadBool();
+                                    Console.WriteLine($"Client received initial data: ID: {packetID2}, IsLast: {isLastPacket}, i: {index}, isInit: {isInit}");
+                                    var (packetID3, writes2, reads3, _) = _initialDataPacketInfo[t2];
+                                    if (isInit)
+                                    {
+                                        for (var i = 0; i < reads3.Length; i++)
+                                            reads3[i](inData, instance2);
+                                        var writer = new NetBitPackedDataWriter();
+                                        {
+                                            writer.WriteRangedInt(0, _packets.Count, 0);
+                                            writer.WriteRangedInt(0, _initialDataPackets.Count, packetID3);
+                                            writer.Write(index);
+                                            for (var i = 0; i < writes2.Length; i++)
+                                                writes2[i](writer, instance2);
+                                            _server.Send(writer.Data, DeliveryMethod.ReliableOrdered);
+                                        }
+                                        return;
+                                    }
+                                }
+                                Console.WriteLine($"Client received initial data: ID: {packetID2}, IsLast: {isLastPacket}");
                                 do
                                 {
                                     for (var i = 0; i < reads2.Length; i++)
@@ -426,6 +501,7 @@ namespace LiteNetLib
                                 var writer = new NetBitPackedDataWriter();
                                 {
                                     writer.WriteRangedInt(0, _packets.Count, 0);
+                                    writer.WriteRangedInt(0, _initialDataPackets.Count, 0);
                                     _server.Send(writer.Data, DeliveryMethod.ReliableOrdered);
                                 }
                                 OnJoin?.Invoke(_selfID);
