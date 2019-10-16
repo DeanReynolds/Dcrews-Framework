@@ -6,8 +6,8 @@ namespace Dcrew.Framework
     {
         const int _overAllocateAmount = 4;
 
-        public ToggleEvent WakeObj,
-            ResetObj;
+        public ToggleEvent OnSpawn,
+            OnDespawn;
 
         public delegate T NewObjEvent();
         public delegate void ToggleEvent(T obj);
@@ -33,18 +33,18 @@ namespace Dcrew.Framework
                 _inactive.Push(_newObj());
         }
 
-        public T Activate()
+        public T Spawn()
         {
             if (_inactive.Count <= 0)
                 Expand(_overAllocateAmount);
             var obj = _inactive.Pop();
-            WakeObj?.Invoke(obj);
+            OnSpawn?.Invoke(obj);
             return obj;
         }
-        public bool Deactivate(T obj)
+        public bool Despawn(T obj)
         {
             _inactive.Push(obj);
-            ResetObj?.Invoke(obj);
+            OnDespawn?.Invoke(obj);
             return true;
         }
     }
