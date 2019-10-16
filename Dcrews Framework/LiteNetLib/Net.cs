@@ -155,8 +155,8 @@ namespace LiteNetLib
             NetPool.DespawnSpawned();
             return UpdateState.Finished;
         }
-        internal static void OnRoomOpen(Room oldRoom) => Room.AddUpdate(Tick);
-        internal static void OnRoomClosed(Room oldRoom) => Room.RemoveUpdate(Tick);
+        internal static void OnRoomOpen() => Room.AddUpdate(Tick);
+        internal static void OnRoomClosed() => Room.RemoveUpdate(Tick);
 
         class EventListener : INetEventListener
         {
@@ -363,8 +363,8 @@ namespace LiteNetLib
             NetPool.DespawnSpawned();
             return UpdateState.Finished;
         }
-        internal static void OnRoomOpen(Room oldRoom) => Room.AddUpdate(Tick);
-        internal static void OnRoomClosed(Room oldRoom) => Room.RemoveUpdate(Tick);
+        internal static void OnRoomOpen() => Room.AddUpdate(Tick);
+        internal static void OnRoomClosed() => Room.RemoveUpdate(Tick);
         internal static void InvokeOnJoin(int selfID) => OnJoin?.Invoke(selfID);
         internal static void InvokeOnPeerJoin(int peerID) => OnPeerJoin?.Invoke(peerID);
 

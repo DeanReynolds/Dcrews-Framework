@@ -10,7 +10,7 @@ namespace Dcrew.Framework
     public enum DrawState { Cancelled, Finished }
 
     public delegate void SizeChangedEvent(int oldWidth, int oldHeight);
-    public delegate void RoomUpdate(Room oldRoom);
+    public delegate void RoomUpdate();
     public delegate UpdateState UpdateEvent();
     public delegate DrawState DrawEvent(SpriteBatch spriteBatch);
 
@@ -89,11 +89,11 @@ namespace Dcrew.Framework
             {
                 if (value != null && value != _room)
                 {
-                    OnRoomClosed?.Invoke(_room);
                     _room.OnClose();
+                    OnRoomClosed?.Invoke();
                     _room = value;
-                    OnRoomOpen?.Invoke(_room);
                     _room.OnOpen();
+                    OnRoomOpen?.Invoke();
                 }
             }
         }
