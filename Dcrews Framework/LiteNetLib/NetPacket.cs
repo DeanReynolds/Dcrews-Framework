@@ -274,24 +274,48 @@ namespace LiteNetLib
                         writes.Add((NetBitPackedDataWriter writer, object o) =>
                         {
                             fs = (FileStream)f.GetValue(o);
+                            var bytes = new byte[fs.Length];
                             fs.Position = 0;
-                            //writer.Write(fs.Name);
-                            writer.Write((int)fs.Length);
-                            for (var j = 0; j < fs.Length; j++)
-                                writer.Write((byte)fs.ReadByte());
+                            fs.Read(bytes, 0, bytes.Length);
+                            var hash = new MD5CryptoServiceProvider().ComputeHash(bytes);
+                            writer.Write(fs.Name.Replace($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\", ""));
+                            writer.Write(hash.Length);
+                            writer.Write(hash);
+                            writer.Write(bytes.Length);
+                            writer.Write(bytes);
                         });
                         reads.Add((NetBitPackedDataReader reader, object o) =>
                         {
-                            var arr = new byte[reader.ReadInt()];
-                            for (var j = 0; j < arr.Length; j++)
-                                arr[j] = reader.ReadByte();
-                            using (fs = new FileStream("test.png", FileMode.Create, FileAccess.Write, FileShare.None))
+                            string filePath = reader.ReadString(),
+                                dir = $"{Path.GetDirectoryName(filePath)}\\",
+                                fileName = Path.GetFileName(filePath);
+                            var hash = reader.ReadBytes(reader.ReadInt());
+                            checkAuth:
+                            if (File.Exists(filePath))
                             {
-                                fs.Write(arr, 0, arr.Length);
-                                fs.Flush();
-                                fs.Close();
+                                var fs2 = File.OpenRead(filePath);
+                                var hashBytes2 = new byte[fs2.Length];
+                                fs2.Read(hashBytes2, 0, hashBytes2.Length);
+                                var hash2 = new MD5CryptoServiceProvider().ComputeHash(hashBytes2);
+                                if (hash.SequenceEqual(hash2))
+                                {
+                                    f.SetValue(o, fs2);
+                                    reader.ReadBytes(reader.ReadInt());
+                                    return;
+                                }
+                                fs2.Close();
+                                fs2.Dispose();
+                                fileName = $"_{fileName}";
+                                filePath = $"{dir}\\{fileName}";
+                                goto checkAuth;
                             }
-                            fs = File.OpenRead("test.png");
+                            var arr = reader.ReadBytes(reader.ReadInt());
+                            fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                            fs.Write(arr, 0, arr.Length);
+                            fs.Flush();
+                            fs.Close();
+                            fs.Dispose();
+                            fs = File.OpenRead(filePath);
                             f.SetValue(o, fs);
                         });
                         continue;
