@@ -2,6 +2,7 @@
 using LiteNetLib.Utils;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -32,12 +33,14 @@ namespace LiteNetLib
             _initialDataPacketInfo = new Dictionary<Type, (int, Action<NetBitPackedDataWriter, object>[], Action<NetBitPackedDataReader, object>[], NetPacket)>();
         internal static readonly int _initialPacketBits = Enum.GetValues(typeof(INITIAL_PACKET)).Length - 1,
             _initialDataIDBits = Enum.GetValues(typeof(INITIAL_DATA_ID)).Length - 1;
+        internal static readonly IDictionary<string, (NET_FILE_STATE State, byte[] MD5Hash)> _netFileInfo = new Dictionary<string, (NET_FILE_STATE, byte[])>();
 
         internal static int _maxPlayers,
             _maxPlayersIndex;
 
         internal enum INITIAL_PACKET { INITIAL_DATA, PEER_JOIN, PEER_QUIT }
         internal enum INITIAL_DATA_ID { DATA }
+        internal enum NET_FILE_STATE { AWAITING_HASH, IDENTICAL_FILE, FILE_DIFFERENT }
 
         static IDictionary<int, NetPeer> _peers1; // doesn't include self in listen server
         static IDictionary<int, NetPeer> _peers2; // does include self in listen server
@@ -126,7 +129,7 @@ namespace LiteNetLib
             }
         }
 
-        public static void SendToAll(NetPacket packet, DeliveryMethod options, NetPeer excludePeer)
+        public static void SendToAll(NetPacket packet, DeliveryMethod options, NetPeer excludePeer = null)
         {
             var writer = new NetBitPackedDataWriter();
             var (packetID, writes, _, _) = _packetInfo[packet.GetType()];
@@ -287,8 +290,8 @@ namespace LiteNetLib
                             writer.WriteRangedInt(0, _packets.Count, 0);
                             writer.WriteRangedInt(0, _initialPacketBits, (int)INITIAL_PACKET.INITIAL_DATA);
                             writer.WriteRangedInt(0, _initialDataIDBits, (int)INITIAL_DATA_ID.DATA);
-                            var (packetID3, writes2, _, _) = _initialDataPacketInfo[packet.GetType()];
-                            writer.Write(packetID3);
+                            var (_, writes2, _, _) = _initialDataPacketInfo[packet.GetType()];
+                            writer.Write(packetID2);
                             writer.Write(i == InitialData.Count - 1);
                             writer.Write(i);
                             writer.Write(false);
@@ -364,9 +367,9 @@ namespace LiteNetLib
                 _packetInfo.Add(t, (id++, writes, reads, (NetPacket)Activator.CreateInstance(t), t.GetCustomAttribute(typeof(ServerNoRelay)) == null));
             }
             id = 1;
-            foreach (var t in Assembly.GetEntryAssembly().GetTypes().Where(x => x.IsClass && !x.IsAbstract && x.IsSubclassOf(typeof(NetPacket)) && x.GetCustomAttribute(typeof(InitialServerData)) != null))
+            foreach (var t in Assembly.GetEntryAssembly().GetTypes().Where(x => x.IsClass && !x.IsAbstract && x.IsSubclassOf(typeof(NetPacket))))
             {
-                var (writes, reads) = GetProcessors(t.GetFields().Where(x => x.IsPublic && !x.IsStatic && x.FieldType == typeof(NetFile)).ToArray());
+                var (writes, reads) = GetProcessors(t.GetFields().Where(x => x.IsPublic && !x.IsStatic && x.FieldType == typeof(FileStream)).ToArray());
                 if (writes.Length > 0)
                 {
                     _initialDataPackets.Add(id, t);
@@ -468,8 +471,7 @@ namespace LiteNetLib
                                 var (_, _, reads2, instance2) = NetServer._initialDataPacketInfo[t2];
                                 if (_initialDataPacketInfo.ContainsKey(t2))
                                 {
-                                    var index = inData.ReadInt();
-                                    var isInit = inData.ReadBool();
+                                    var (index, isInit) = (inData.ReadInt(), inData.ReadBool());
                                     Console.WriteLine($"Client received initial data: ID: {packetID2}, IsLast: {isLastPacket}, i: {index}, isInit: {isInit}");
                                     var (packetID3, writes2, reads3, _) = _initialDataPacketInfo[t2];
                                     if (isInit)

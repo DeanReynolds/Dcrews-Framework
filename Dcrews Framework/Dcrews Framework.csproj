@@ -52,7 +52,6 @@
     <Compile Include="Interfaces\IHeapItem.cs" />
     <Compile Include="Heap.cs" />
     <Compile Include="LiteNetLib\Net.cs" />
-    <Compile Include="LiteNetLib\NetFile.cs" />
     <Compile Include="LiteNetLib\NetPacket.cs" />
     <Compile Include="LiteNetLib\NetPool.cs" />
     <Compile Include="MGGame.cs" />

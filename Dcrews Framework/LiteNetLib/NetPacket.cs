@@ -275,95 +275,59 @@ namespace LiteNetLib
                         writes.Add((NetBitPackedDataWriter writer, object o) =>
                         {
                             fs = (FileStream)f.GetValue(o);
-                            var bytes = new byte[fs.Length];
-                            fs.Position = 0;
-                            fs.Read(bytes, 0, bytes.Length);
-                            var hash = new MD5CryptoServiceProvider().ComputeHash(bytes);
-                            writer.Write(fs.Name.Replace($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\", ""));
-                            writer.Write(hash.Length);
-                            writer.Write(hash);
-                            writer.Write(bytes.Length);
-                            writer.Write(bytes);
-                        });
-                        reads.Add((NetBitPackedDataReader reader, object o) =>
-                        {
-                            string filePath = reader.ReadString(),
-                                dir = $"{Path.GetDirectoryName(filePath)}\\",
-                                fileName = Path.GetFileName(filePath);
-                            var hash = reader.ReadBytes(reader.ReadInt());
-                            checkAuth:
-                            if (File.Exists(filePath))
-                            {
-                                var fs2 = File.OpenRead(filePath);
-                                var hashBytes2 = new byte[fs2.Length];
-                                fs2.Read(hashBytes2, 0, hashBytes2.Length);
-                                var hash2 = new MD5CryptoServiceProvider().ComputeHash(hashBytes2);
-                                if (hash.SequenceEqual(hash2))
-                                {
-                                    f.SetValue(o, fs2);
-                                    reader.ReadBytes(reader.ReadInt());
-                                    return;
-                                }
-                                fs2.Close();
-                                fs2.Dispose();
-                                fileName = $"_{fileName}";
-                                filePath = $"{dir}\\{fileName}";
-                                goto checkAuth;
-                            }
-                            var arr = reader.ReadBytes(reader.ReadInt());
-                            fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                            fs.Write(arr, 0, arr.Length);
-                            fs.Flush();
-                            fs.Close();
-                            fs.Dispose();
-                            fs = File.OpenRead(filePath);
-                            f.SetValue(o, fs);
-                        });
-                        continue;
-                    }
-                    if (f.FieldType == typeof(NetFile))
-                    {
-                        NetFile fs;
-                        writes.Add((NetBitPackedDataWriter writer, object o) =>
-                        {
-                            fs = (NetFile)f.GetValue(o);
                             if (NetServer.IsRunning)
                             {
-                                writer.WriteRangedInt(0, 2, (int)fs.State);
-                                writer.Write(fs.Stream.Name.Replace($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\", ""));
-                                if (fs.State == NetFile.States.AWAITING_HASH)
+                                if (!NetServer._netFileInfo.ContainsKey(fs.Name))
                                 {
-                                    writer.Write(fs.MD5Hash.Length);
-                                    writer.Write(fs.MD5Hash);
+                                    var bytes = new byte[fs.Length];
+                                    fs.Position = 0;
+                                    fs.Read(bytes, 0, bytes.Length);
+                                    NetServer._netFileInfo.Add(fs.Name, (NetServer.NET_FILE_STATE.AWAITING_HASH, new MD5CryptoServiceProvider().ComputeHash(bytes)));
                                 }
-                                else if (fs.State == NetFile.States.FILE_DIFFERENT)
+                                var (state, hash) = NetServer._netFileInfo[fs.Name];
+                                writer.WriteRangedInt(0, 2, (int)state);
+                                writer.Write(fs.Name.Replace($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\", ""));
+                                if (state == NetServer.NET_FILE_STATE.AWAITING_HASH)
                                 {
-                                    var bytes = new byte[fs.Stream.Length];
-                                    fs.Stream.Position = 0;
-                                    fs.Stream.Read(bytes, 0, bytes.Length);
+                                    writer.Write(hash.Length);
+                                    writer.Write(hash);
+                                }
+                                else if (state == NetServer.NET_FILE_STATE.FILE_DIFFERENT)
+                                {
+                                    var bytes = new byte[fs.Length];
+                                    fs.Position = 0;
+                                    fs.Read(bytes, 0, bytes.Length);
                                     writer.Write(bytes.Length);
                                     writer.Write(bytes);
+                                    NetServer._netFileInfo.Remove(fs.Name);
                                 }
+                                else
+                                    NetServer._netFileInfo.Remove(fs.Name);
                                 return;
                             }
                             if (fs == null)
-                                writer.WriteRangedInt(0, 2, (int)NetFile.States.FILE_DIFFERENT);
+                                writer.WriteRangedInt(0, 2, (int)NetServer.NET_FILE_STATE.FILE_DIFFERENT);
                             else
-                                writer.WriteRangedInt(0, 2, (int)fs.State);
+                            {
+                                if (!NetServer._netFileInfo.ContainsKey(fs.Name))
+                                    NetServer._netFileInfo.Add(fs.Name, (NetServer.NET_FILE_STATE.AWAITING_HASH, null));
+                                writer.WriteRangedInt(0, 2, (int)NetServer._netFileInfo[fs.Name].State);
+                            }
                         });
                         reads.Add((NetBitPackedDataReader reader, object o) =>
                         {
-                            fs = (NetFile)f.GetValue(o);
-                            var state = (NetFile.States)reader.ReadRangedInt(0, 2);
+                            fs = (FileStream)f.GetValue(o);
+                            var state = (NetServer.NET_FILE_STATE)reader.ReadRangedInt(0, 2);
                             if (NetServer.IsRunning)
                             {
-                                fs.State = state;
+                                var (_, hash) = NetServer._netFileInfo[fs.Name];
+                                NetServer._netFileInfo[fs.Name] = (state, hash);
                                 return;
                             }
                             string filePath = reader.ReadString(),
                                 dir = $"{Path.GetDirectoryName(filePath)}\\",
                                 fileName = Path.GetFileName(filePath);
-                            if (state == NetFile.States.AWAITING_HASH)
+                            if (state == NetServer.NET_FILE_STATE.AWAITING_HASH)
                             {
                                 var hash = reader.ReadBytes(reader.ReadInt());
                                 checkAuth:
@@ -375,7 +339,13 @@ namespace LiteNetLib
                                     var hash2 = new MD5CryptoServiceProvider().ComputeHash(hashBytes2);
                                     if (hash.SequenceEqual(hash2))
                                     {
-                                        f.SetValue(o, new NetFile(fs2) { State = NetFile.States.IDENTICAL_FILE });
+                                        if (fs != null)
+                                        {
+                                            fs.Close();
+                                            fs.Dispose();
+                                        }
+                                        f.SetValue(o, fs2);
+                                        NetServer._netFileInfo[fs2.Name] = (NetServer.NET_FILE_STATE.IDENTICAL_FILE, hash2);
                                         return;
                                     }
                                     fs2.Close();
@@ -385,7 +355,7 @@ namespace LiteNetLib
                                     goto checkAuth;
                                 }
                             }
-                            else if (state == NetFile.States.FILE_DIFFERENT)
+                            else if (state == NetServer.NET_FILE_STATE.FILE_DIFFERENT)
                             {
                                 checkAuth2:
                                 if (File.Exists(filePath))
@@ -400,7 +370,7 @@ namespace LiteNetLib
                                 fs2.Flush();
                                 fs2.Close();
                                 fs2.Dispose();
-                                fs = new NetFile(File.OpenRead(filePath));
+                                fs = File.OpenRead(filePath);
                                 f.SetValue(o, fs);
                             }
                         });
