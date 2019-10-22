@@ -6,8 +6,8 @@ namespace LiteNetLib
 {
     public static class NetPool
     {
-        internal static IDictionary<Type, ObjectPool<object>> _pools = new Dictionary<Type, ObjectPool<object>>();
-        internal static Stack<(object Packet, ObjectPool<object> Pool)> _spawnedPackets = new Stack<(object, ObjectPool<object>)>();
+        static IDictionary<Type, ObjectPool<object>> _pools = new Dictionary<Type, ObjectPool<object>>();
+        static Stack<(object Packet, ObjectPool<object> Pool)> _spawnedPackets = new Stack<(object, ObjectPool<object>)>();
 
         public static T Spawn<T>() where T : NetPacket
         {
@@ -21,12 +21,8 @@ namespace LiteNetLib
         
         internal static void DespawnSpawned()
         {
-            //Console.WriteLine();
             foreach (var (packet, pool) in _spawnedPackets)
-            {
-                //Console.WriteLine($"NetPool: Despawned {packet.GetType()}!");
                 pool.Despawn(packet);
-            }
             _spawnedPackets.Clear();
         }
     }

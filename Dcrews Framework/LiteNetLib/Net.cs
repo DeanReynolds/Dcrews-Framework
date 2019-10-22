@@ -25,8 +25,6 @@ namespace LiteNetLib
 
         public static bool IsRunning => (_manager != null) && _manager.IsRunning;
 
-        internal static NetManager _manager;
-
         internal static readonly IDictionary<int, Type> _packets = new Dictionary<int, Type>(),
             _initialDataPackets = new Dictionary<int, Type>();
         internal static readonly IDictionary<Type, (int ID, Action<NetBitPackedDataWriter, object>[] Writes, Action<NetBitPackedDataReader, object>[] Reads, NetPacket Instance)> _packetInfo = new Dictionary<Type, (int, Action<NetBitPackedDataWriter, object>[], Action<NetBitPackedDataReader, object>[], NetPacket)>(),
@@ -43,12 +41,12 @@ namespace LiteNetLib
         internal enum INITIAL_DATA_ID { DATA }
         internal enum NET_FILE_STATE { AWAITING_HASH, IDENTICAL_FILE, FILE_DIFFERENT }
 
-        static IDictionary<int, NetPeer> _peers1; // doesn't include self in listen server
-        static IDictionary<int, NetPeer> _peers2; // does include self in listen server
-        static IDictionary<NetPeer, int> _peerIDs;
-        static readonly IDictionary<NetPeer, IDictionary<Type, ISet<int>>> _expectedPacketsWithFiles = new Dictionary<NetPeer, IDictionary<Type, ISet<int>>>();
-
         static readonly EventListener _eventListener = new EventListener();
+        static readonly NetManager _manager = new NetManager(_eventListener) { AutoRecycle = true, UpdateTime = 15 };
+        static readonly IDictionary<int, NetPeer> _peers1 = new Dictionary<int, NetPeer>(), // doesn't include self in listen server
+            _peers2 = new Dictionary<int, NetPeer>(); // does include self in listen server
+        static readonly IDictionary<NetPeer, int> _peerIDs = new Dictionary<NetPeer, int>();
+        static readonly IDictionary<NetPeer, IDictionary<Type, ISet<int>>> _expectedPacketsWithFiles = new Dictionary<NetPeer, IDictionary<Type, ISet<int>>>();
 
         static NetServer()
         {
@@ -78,39 +76,30 @@ namespace LiteNetLib
 
         public static void Start(int port, int maxPlayers, bool listenServer)
         {
-            if ((_manager == null) || !_manager.IsRunning)
-            {
-                _manager = new NetManager(_eventListener);
-                _maxPlayersIndex = (_maxPlayers = maxPlayers) - 1;
-                _manager.AutoRecycle = true;
-                _manager.UpdateTime = 15;
-                _manager.Start(port);
-                _peers1 = new Dictionary<int, NetPeer>(maxPlayers);
-                _peers2 = new Dictionary<int, NetPeer>(maxPlayers);
-                _peerIDs = new Dictionary<NetPeer, int>(maxPlayers);
-                Room.AddUpdate(Tick);
-                MGGame.OnRoomOpen += OnRoomOpen;
-                MGGame.OnRoomClosed += OnRoomClosed;
-                IsListen = listenServer;
-            }
+            if (_manager.IsRunning)
+                return;
+            _maxPlayersIndex = (_maxPlayers = maxPlayers) - 1;
+            _manager.Start(port);
+            Room.AddUpdate(Tick);
+            MGGame.OnRoomOpen += OnRoomOpen;
+            MGGame.OnRoomClosed += OnRoomClosed;
+            IsListen = listenServer;
         }
         public static void Stop()
         {
-            if ((_manager != null) && _manager.IsRunning)
-            {
-                _manager.Stop(true);
-                Room.RemoveUpdate(Tick);
-                MGGame.OnRoomOpen -= OnRoomOpen;
-                MGGame.OnRoomClosed -= OnRoomClosed;
-                _manager = null;
-                _peerIDs.Clear();
-                _peerIDs = null;
-                _peers1.Clear();
-                _peers1 = null;
-                _peers2.Clear();
-                _peers2 = null;
-                _expectedPacketsWithFiles.Clear();
-            }
+            if (!_manager.IsRunning)
+                return;
+            MGGame.OnRoomClosed -= OnRoomClosed;
+            MGGame.OnRoomOpen -= OnRoomOpen;
+            Room.RemoveUpdate(Tick);
+            _manager.Stop(true);
+            _peerIDs.Clear();
+            _peers2.Clear();
+            _peers1.Clear();
+            _expectedPacketsWithFiles.Clear();
+            _netFileInfo.Clear();
+            for (var i = 0; i < _netFilePackets.Length; i++)
+                _netFilePackets[i] = null;
         }
 
         public static void SyncEachPlayer(Func<int, NetPacket> packet)
@@ -434,9 +423,8 @@ namespace LiteNetLib
         internal static readonly IDictionary<Type, (int ID, Action<NetBitPackedDataWriter, object>[] Writes, Action<NetBitPackedDataReader, object>[] Reads, NetPacket Instance)> _packetsWithFilesInfo = new Dictionary<Type, (int, Action<NetBitPackedDataWriter, object>[], Action<NetBitPackedDataReader, object>[], NetPacket)>();
         internal static IDictionary<Type, int> _packetStates = new Dictionary<Type, int>();
 
-        static NetManager _manager;
-
         static readonly EventListener _eventListener = new EventListener();
+        static readonly NetManager _manager = new NetManager(_eventListener);
 
         static NetClient()
         {
@@ -461,27 +449,23 @@ namespace LiteNetLib
 
         public static void Start(string ip, int port)
         {
-            if ((_manager == null) || !_manager.IsRunning)
-            {
-                _manager = new NetManager(_eventListener);
-                _manager.Start();
-                Room.AddUpdate(Tick);
-                MGGame.OnRoomOpen += OnRoomOpen;
-                MGGame.OnRoomClosed += OnRoomClosed;
-                _manager.Connect(ip, port, new NetDataWriter());
-            }
+            if (_manager.IsRunning)
+                return;
+            _manager.Start();
+            Room.AddUpdate(Tick);
+            MGGame.OnRoomOpen += OnRoomOpen;
+            MGGame.OnRoomClosed += OnRoomClosed;
+            _manager.Connect(ip, port, new NetDataWriter());
         }
         public static void Stop()
         {
-            if ((_manager != null) && _manager.IsRunning)
-            {
-                _manager.Stop(true);
-                Room.RemoveUpdate(Tick);
-                MGGame.OnRoomOpen -= OnRoomOpen;
-                MGGame.OnRoomClosed -= OnRoomClosed;
-                _manager = null;
-                _selfID = -1;
-            }
+            if (!_manager.IsRunning)
+                return;
+            MGGame.OnRoomClosed -= OnRoomClosed;
+            MGGame.OnRoomOpen -= OnRoomOpen;
+            Room.RemoveUpdate(Tick);
+            _manager.Stop(true);
+            _selfID = -1;
         }
 
         public static void Send(NetPacket packet, DeliveryMethod options)
