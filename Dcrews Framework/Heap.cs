@@ -2,9 +2,16 @@
 
 namespace Dcrew.Framework
 {
+    public interface IHeapItem<T> : IComparable<T>
+    {
+        int Index { get; set; }
+    }
+
     public class Heap<T> where T : IHeapItem<T>
     {
         public int Count { get; private set; }
+
+        public int Capacity => _items.Length;
 
         readonly T[] _items;
 
@@ -26,10 +33,9 @@ namespace Dcrew.Framework
         }
 
         public void UpdateItem(T item) => SortUp(item);
-
-        public bool Contains(T item) => Equals(_items[item.Index], item);
-
         public void Clear() => Array.Clear(_items, Count = 0, _items.Length);
+        public void RemoveLast() => Array.Clear(_items, --Count, 1);
+        public bool Contains(T item) => Equals(_items[item.Index], item);
 
         void SortUp(T item)
         {

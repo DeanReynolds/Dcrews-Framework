@@ -49,7 +49,6 @@
   <ItemGroup>
     <Compile Include="BitPacker\BitPackedDataReader.cs" />
     <Compile Include="BitPacker\BitPackedDataWriter.cs" />
-    <Compile Include="Interfaces\IHeapItem.cs" />
     <Compile Include="Heap.cs" />
     <Compile Include="LiteNetLib\Net.cs" />
     <Compile Include="LiteNetLib\NetPacket.cs" />
