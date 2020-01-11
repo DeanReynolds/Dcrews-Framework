@@ -39,7 +39,7 @@ namespace Dcrew.Framework
         /// <summary>Called when this room becomes the active room</summary>
         public virtual void OnOpen()
         {
-            _camera = _camera ?? new Camera(Vector2.Zero, 0, (1, 1), (MGGame.VirtualScreenSize.Width, MGGame.VirtualScreenSize.Height));
+            _camera = _camera ?? new Camera(Vector2.Zero, 0, Vector2.One, new Vector2(MGGame.VirtualScreenSize.Width, MGGame.VirtualScreenSize.Height));
             MGGame.OnViewportSizeChanged += OnViewportSizeChanged;
             MGGame.OnVirtualScreenSizeChanged += OnVirtualScreenSizeChanged;
         }
@@ -61,8 +61,8 @@ namespace Dcrew.Framework
                 _drawEvents[i](spriteBatch);
         }
 
-        void OnViewportSizeChanged(int oldWidth, int oldHeight) => Camera.ViewportSize = (MGGame.Viewport.Width, MGGame.Viewport.Height);
-        void OnVirtualScreenSizeChanged(int oldWidth, int oldHeight) => Camera.VirtualScreenSize = (MGGame.VirtualScreenSize.Width, MGGame.VirtualScreenSize.Height);
+        void OnViewportSizeChanged(int oldWidth, int oldHeight) => Camera.ViewportSize = new Vector2(MGGame.Viewport.Width, MGGame.Viewport.Height);
+        void OnVirtualScreenSizeChanged(int oldWidth, int oldHeight) => Camera.VirtualScreenSize = new Vector2(MGGame.VirtualScreenSize.Width, MGGame.VirtualScreenSize.Height);
     }
     public static class Time
     {
@@ -111,36 +111,55 @@ namespace Dcrew.Framework
         public static (int Width, int Height, float HalfWidth, float HalfHeight) VirtualScreenSize { get; private set; }
         public static long TicksPerUpdate { get; private set; }
 
-        static (int Width, int Height) _oldViewportSize;
+        internal static Viewport _viewport;
+
+        static (int Width, int Height) _oldViewportSize,
+            _oldPrefBackBufferSize;
         static Room _room;
 
-        public static void SetVirtualResolution(int width, int height)
+        public static void SetVirtualRes(int width, int height)
         {
             if ((width != VirtualScreenSize.Width) || (height != VirtualScreenSize.Height))
             {
-                OnVirtualScreenSizeChanged?.Invoke(VirtualScreenSize.Width, VirtualScreenSize.Height);
+                int oldWidth = VirtualScreenSize.Width,
+                    oldHeight = VirtualScreenSize.Height;
                 VirtualScreenSize = (width, height, width / 2f, height / 2f);
-                var targetAspectRatio = width / (float)height;
-                var width2 = Graphics.PreferredBackBufferWidth;
-                var height2 = (int)(width2 / targetAspectRatio + .5f);
-                if (height2 > Graphics.PreferredBackBufferHeight)
-                {
-                    height2 = Graphics.PreferredBackBufferHeight;
-                    width2 = (int)(height2 * targetAspectRatio + .5f);
-                }
-                GraphicsDevice.SetRenderTarget(null);
-                GraphicsDevice.Viewport = _viewport = new Viewport()
-                {
-                    X = (Graphics.PreferredBackBufferWidth / 2) - (width2 / 2),
-                    Y = (Graphics.PreferredBackBufferHeight / 2) - (height2 / 2),
-                    Width = width2,
-                    Height = height2
-                };
-                CheckViewportSizeChanged();
+                OnVirtualScreenSizeChanged?.Invoke(oldWidth, oldHeight);
+                ForceVirtualResChange();
+                Graphics.DeviceReset -= Graphics_DeviceReset;
+                Graphics.DeviceReset += Graphics_DeviceReset;
             }
         }
 
-        internal static Viewport _viewport;
+        static void ForceVirtualResChange()
+        {
+            var targetAspectRatio = VirtualScreenSize.Width / (float)VirtualScreenSize.Height;
+            var width2 = Graphics.PreferredBackBufferWidth;
+            var height2 = (int)(width2 / targetAspectRatio + .5f);
+            if (height2 > Graphics.PreferredBackBufferHeight)
+            {
+                height2 = Graphics.PreferredBackBufferHeight;
+                width2 = (int)(height2 * targetAspectRatio + .5f);
+            }
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.Viewport = _viewport = new Viewport()
+            {
+                X = (Graphics.PreferredBackBufferWidth / 2) - (width2 / 2),
+                Y = (Graphics.PreferredBackBufferHeight / 2) - (height2 / 2),
+                Width = width2,
+                Height = height2
+            };
+            CheckViewportSizeChanged();
+        }
+
+        static void Graphics_DeviceReset(object sender, EventArgs e)
+        {
+            if (Graphics.PreferredBackBufferWidth != _oldPrefBackBufferSize.Width || Graphics.PreferredBackBufferHeight != _oldPrefBackBufferSize.Height)
+            {
+                ForceVirtualResChange();
+                _oldPrefBackBufferSize = (Graphics.PreferredBackBufferWidth, Graphics.PreferredBackBufferHeight);
+            }
+        }
 
         static void CheckViewportSizeChanged()
         {

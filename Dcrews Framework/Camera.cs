@@ -26,7 +26,7 @@ namespace Dcrew.Framework
                 UpdatePosition();
             }
         }
-        public Vector2 Position
+        public Vector2 Pos
         {
             get => _position;
             set
@@ -51,7 +51,7 @@ namespace Dcrew.Framework
                 UpdatePosition();
             }
         }
-        public (float X, float Y) Scale
+        public Vector2 Scale
         {
             get => _scale;
             set
@@ -63,32 +63,30 @@ namespace Dcrew.Framework
                 UpdatePosition();
             }
         }
-        public (int Width, int Height) ViewportSize
+        public Vector2 ViewportSize
         {
             get => _viewportSize;
             set
             {
-                if (_viewportSize.Width != value.Width || _viewportSize.Height != value.Height)
+                if (_viewportSize != value)
                 {
                     _viewportSize = value;
-                    _viewportSizeOver2.X = _viewportSize.Width / 2f;
-                    _viewportSizeOver2.Y = _viewportSize.Height / 2f;
-                    var virtualScale = Math.Min(_viewportSize.Width / (float)_virtualScreenSize.Width, _viewportSize.Height / (float)_virtualScreenSize.Height);
-                    _virtualScale = (virtualScale, virtualScale);
+                    _viewportSizeOver2.X = _viewportSize.X / 2;
+                    _viewportSizeOver2.Y = _viewportSize.Y / 2;
+                    _virtualScale = new Vector2(Math.Min(_viewportSize.X / _virtualScreenSize.X, _viewportSize.Y / _virtualScreenSize.Y));
                     UpdateScale();
-                    _projection.M11 = (float)(2d / _viewportSize.Width);
-                    _projection.M22 = (float)(2d / -_viewportSize.Height);
+                    _projection.M11 = (float)(2d / _viewportSize.X);
+                    _projection.M22 = (float)(2d / -_viewportSize.Y);
                 }
             }
         }
-        public (int Width, int Height) VirtualScreenSize
+        public Vector2 VirtualScreenSize
         {
             get => _virtualScreenSize;
             set
             {
                 _virtualScreenSize = value;
-                var virtualScale = Math.Min(_viewportSize.Width / (float)_virtualScreenSize.Width, _viewportSize.Height / (float)_virtualScreenSize.Height);
-                _virtualScale = (virtualScale, virtualScale);
+                _virtualScale = new Vector2(Math.Min(_viewportSize.X / _virtualScreenSize.X, _viewportSize.Y / _virtualScreenSize.Y));
                 UpdateScale();
             }
         }
@@ -97,41 +95,41 @@ namespace Dcrew.Framework
         public Vector2 MousePosition => _mousePosition;
         public Matrix Projection => _projection;
 
-        Vector2 _position;
-        float _angle;
-        (int Width, int Height) _viewportSize;
-        (float X, float Y) _viewportSizeOver2;
-        (int Width, int Height) _virtualScreenSize;
-        float _rotM11;
-        float _rotM12;
-        float _rotX1;
-        float _rotY1;
-        float _rotX2;
-        float _rotY2;
-        (float X, float Y) _scale;
-        (float X, float Y) _virtualScale;
-        (float X, float Y) _actualScale;
+        Vector2 _position,
+            _scale,
+            _virtualScale,
+            _actualScale,
+            _viewportSize,
+            _viewportSizeOver2,
+            _virtualScreenSize,
+            _mousePosition;
+        float _angle,
+            _rotM11,
+            _rotM12,
+            _rotX1,
+            _rotY1,
+            _rotX2,
+            _rotY2,
+            _invertM11,
+            _invertM12,
+            _invertM21,
+            _invertM22,
+            _invertM41,
+            _invertM42;
         double _n27;
-        Matrix _view;
-        float _invertM11;
-        float _invertM12;
-        float _invertM21;
-        float _invertM22;
-        float _invertM41;
-        float _invertM42;
-        Vector2 _mousePosition;
-        Matrix _projection;
+        Matrix _view,
+            _projection;
 
-        public Camera(Vector2 position, float angle, (float X, float Y) scale, (int Width, int Height) virtualScreenSize)
+        public Camera(Vector2 position, float angle, Vector2 scale, Vector2 virtualScreenSize)
         {
             _position.X = position.X;
             _position.Y = position.Y;
             _rotM11 = (float)Math.Cos(-(_angle = angle));
             _rotM12 = (float)Math.Sin(-_angle);
             _scale = scale;
-            _viewportSize = (MGGame.Viewport.Width, MGGame.Viewport.Height);
-            _viewportSizeOver2.X = _viewportSize.Width / 2f;
-            _viewportSizeOver2.Y = _viewportSize.Height / 2f;
+            _viewportSize = new Vector2(MGGame.Viewport.Width, MGGame.Viewport.Height);
+            _viewportSizeOver2.X = _viewportSize.X / 2;
+            _viewportSizeOver2.Y = _viewportSize.Y / 2;
             _view = new Matrix
             {
                 M33 = 1,
@@ -140,8 +138,8 @@ namespace Dcrew.Framework
             VirtualScreenSize = virtualScreenSize;
             _projection = new Matrix
             {
-                M11 = (float)(2d / _viewportSize.Width),
-                M22 = (float)(2d / -_viewportSize.Height),
+                M11 = (float)(2d / _viewportSize.X),
+                M22 = (float)(2d / -_viewportSize.Y),
                 M33 = -1,
                 M41 = -1,
                 M42 = 1,
@@ -183,7 +181,7 @@ namespace Dcrew.Framework
 
         void UpdateScale()
         {
-            _actualScale = (_scale.X * _virtualScale.X, _scale.Y * _virtualScale.Y);
+            _actualScale = new Vector2(_scale.X * _virtualScale.X, _scale.Y * _virtualScale.Y);
             UpdateRotationX();
             UpdateRotationY();
             _view.M11 = _actualScale.X * _rotM11;

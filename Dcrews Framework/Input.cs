@@ -47,8 +47,6 @@ namespace Dcrew.Framework
         public delegate void MouseEvent(MouseButton button);
         public enum MouseButton { Left = 0, Right = 1, Middle = 2, XButton1 = 3, XButton2 = 4 }
 
-        enum MouseTrigger { Press = 0, Release = 1 }
-
         internal static void Update()
         {
             _mouseUpdateIndex = 0;

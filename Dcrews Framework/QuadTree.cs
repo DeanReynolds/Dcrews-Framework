@@ -103,7 +103,7 @@ namespace Dcrew.Framework
                         _items.Clear();
                     }
                     foreach (var node in _nodes)
-                        if (node.Bounds.Contains(item.AABB))
+                        if (node.Bounds.Contains(item.AABB.Center))
                         {
                             Node node2;
                             if ((node2 = node.Add(item)) != null)
