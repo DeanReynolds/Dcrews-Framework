@@ -8,7 +8,6 @@ namespace Dcrew.Framework
         readonly Dictionary<int, HashSet<T>> _hash = new Dictionary<int, HashSet<T>>();
         readonly int _spacing;
         readonly Dictionary<T, int> _objsAdded = new Dictionary<T, int>();
-        readonly ObjectPool<HashSet<T>> _pool = new ObjectPool<HashSet<T>>(() => new HashSet<T>());
 
         public SpatialHash(int spacing) { _spacing = spacing; }
 
@@ -18,7 +17,7 @@ namespace Dcrew.Framework
             _objsAdded.Add(obj, bucket);
             if (!_hash.ContainsKey(bucket))
             {
-                var set = _pool.Spawn();
+                var set = Pool<HashSet<T>>.Spawn();
                 set.Clear();
                 set.Add(obj);
                 _hash.Add(bucket, set);
@@ -37,7 +36,7 @@ namespace Dcrew.Framework
             _objsAdded[obj] = bucket;
             if (!_hash.ContainsKey(bucket))
             {
-                var set = _pool.Spawn();
+                var set = Pool<HashSet<T>>.Spawn();
                 set.Clear();
                 set.Add(obj);
                 _hash.Add(bucket, set);
@@ -59,7 +58,7 @@ namespace Dcrew.Framework
             var xn1 = (int)(position.X / _spacing);
             var yn1 = (int)(position.Y / _spacing);
             var bucket = (17 * 23 + xn1.GetHashCode()) * 23 + yn1.GetHashCode();
-            var objs = _pool.Spawn();
+            var objs = Pool<HashSet<T>>.Spawn();
             objs.Clear();
             if (_hash.TryGetValue(bucket, out var set))
                 objs.UnionWith(set);
@@ -96,6 +95,9 @@ namespace Dcrew.Framework
             _objsAdded.Clear();
         }
 
-        public void Recycle(HashSet<T> objs) => _pool.Despawn(objs);
+        public void Recycle(HashSet<T> objs)
+        {
+            Pool<HashSet<T>>.Free(objs);
+        }
     }
 }

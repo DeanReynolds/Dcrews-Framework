@@ -64,7 +64,7 @@
     <Compile Include="QuadTree.cs" />
     <Compile Include="SpatialHash.cs" />
     <Compile Include="SpriteBatchExtensions.cs" />
-    <Compile Include="ObjectPool.cs" />
+    <Compile Include="Pool.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup />

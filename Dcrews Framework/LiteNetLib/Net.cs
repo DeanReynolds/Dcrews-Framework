@@ -198,7 +198,6 @@ namespace LiteNetLib
         internal static UpdateState Tick()
         {
             _manager.PollEvents();
-            NetPool.DespawnSpawned();
             return UpdateState.Finished;
         }
         internal static void OnRoomOpen() => Room.AddUpdate(Tick);
@@ -486,7 +485,6 @@ namespace LiteNetLib
         internal static UpdateState Tick()
         {
             _manager.PollEvents();
-            NetPool.DespawnSpawned();
             return UpdateState.Finished;
         }
         internal static void OnRoomOpen() => Room.AddUpdate(Tick);
