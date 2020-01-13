@@ -111,11 +111,11 @@ namespace Dcrew.Framework
         public static (int Width, int Height, float HalfWidth, float HalfHeight) VirtualScreenSize { get; private set; }
         public static long TicksPerUpdate { get; private set; }
 
-        internal static Viewport _viewport;
-
         static (int Width, int Height) _oldViewportSize,
             _oldPrefBackBufferSize;
         static Room _room;
+        static Viewport _viewport;
+        static bool _hasAsignedGfxDeviceReset;
 
         public static void SetVirtualRes(int width, int height)
         {
@@ -125,13 +125,18 @@ namespace Dcrew.Framework
                     oldHeight = VirtualScreenSize.Height;
                 VirtualScreenSize = (width, height, width / 2f, height / 2f);
                 OnVirtualScreenSizeChanged?.Invoke(oldWidth, oldHeight);
-                ForceVirtualResChange();
-                Graphics.DeviceReset -= Graphics_DeviceReset;
-                Graphics.DeviceReset += Graphics_DeviceReset;
+                ForceVirtualResUpdate();
+                if (!_hasAsignedGfxDeviceReset)
+                {
+                    Graphics.DeviceReset += Graphics_DeviceReset;
+                    _hasAsignedGfxDeviceReset = true;
+                }
+            }
+        }
             }
         }
 
-        static void ForceVirtualResChange()
+        static void ForceVirtualResUpdate()
         {
             var targetAspectRatio = VirtualScreenSize.Width / (float)VirtualScreenSize.Height;
             var width2 = Graphics.PreferredBackBufferWidth;
@@ -156,7 +161,7 @@ namespace Dcrew.Framework
         {
             if (Graphics.PreferredBackBufferWidth != _oldPrefBackBufferSize.Width || Graphics.PreferredBackBufferHeight != _oldPrefBackBufferSize.Height)
             {
-                ForceVirtualResChange();
+                ForceVirtualResUpdate();
                 _oldPrefBackBufferSize = (Graphics.PreferredBackBufferWidth, Graphics.PreferredBackBufferHeight);
             }
         }
@@ -166,6 +171,7 @@ namespace Dcrew.Framework
             if ((GraphicsDevice.Viewport.Width != _oldViewportSize.Width) || (GraphicsDevice.Viewport.Height != _oldViewportSize.Height))
             {
                 OnViewportSizeChanged?.Invoke(_oldViewportSize.Width, _oldViewportSize.Height);
+                //Console.WriteLine($"v: w {Viewport.Width} h {Viewport.Height}");
                 _oldViewportSize = (Viewport.Width, Viewport.Height);
             }
         }
@@ -227,8 +233,6 @@ namespace Dcrew.Framework
             Profiler.Start("Draw");
             _room.Draw(SpriteBatch);
             Profiler.Stop("Draw");
-            GraphicsDevice.SetRenderTarget(null);
-            GraphicsDevice.Viewport = _viewport;
             base.Draw(gameTime);
         }
 
