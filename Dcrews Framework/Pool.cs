@@ -13,6 +13,11 @@ namespace Dcrew.Framework
 
         static readonly Stack<T> _objs = new Stack<T>();
 
+        public static void EnsureSize(int size)
+        {
+            if (_objs.Count < size)
+                Expand(_objs.Count - size);
+        }
         public static void Expand(int amount)
         {
             for (int i = 0; i < amount; i++)
