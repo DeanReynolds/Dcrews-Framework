@@ -398,7 +398,7 @@ namespace LiteNetLib
 
             public void OnConnectionRequest(ConnectionRequest request)
             {
-                if (_manager.PeersCount < _maxPlayers)
+                if (_manager.ConnectedPeersCount < _maxPlayers)
                     OnPeerJoinRequest?.Invoke(request);
                 else
                     request.Reject();
