@@ -8,6 +8,7 @@ namespace Dcrew.Framework
 {
     public enum UpdateState { Cancelled, Finished }
     public enum DrawState { Cancelled, Finished }
+    public enum WindowState { Windowed, Fullscreen, Borderless }
 
     public delegate void SizeChangedEvent(int oldWidth, int oldHeight);
     public delegate void RoomUpdate();
@@ -133,7 +134,25 @@ namespace Dcrew.Framework
                 }
             }
         }
+        public static void SetRes(int width, int height, WindowState? windowState = null)
+        {
+            Graphics.PreferredBackBufferWidth = width;
+            Graphics.PreferredBackBufferHeight = height;
+            switch (windowState)
+            {
+                case WindowState.Windowed:
+                    Graphics.IsFullScreen = false;
+                    break;
+                case WindowState.Fullscreen:
+                    Graphics.HardwareModeSwitch = true;
+                    Graphics.IsFullScreen = true;
+                    break;
+                case WindowState.Borderless:
+                    Graphics.HardwareModeSwitch = false;
+                    Graphics.IsFullScreen = true;
+                    break;
             }
+            Graphics.ApplyChanges();
         }
 
         static void ForceVirtualResUpdate()
