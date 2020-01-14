@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 namespace Dcrew.Framework
 {
+    /// <summary>For fast and accurate spatial partitioning</summary>
     public static class QuadTree<T> where T : IAABB
     {
         public static Rectangle Bounds
@@ -30,6 +31,8 @@ namespace Dcrew.Framework
         public static readonly IDictionary<T, Node> _stored = new Dictionary<T, Node>();
 
         static Node _mainNode;
+
+        static readonly HashSet<HashSet<T>> _setsToRecycle = new HashSet<HashSet<T>>();
 
         public static bool Add(T item)
         {
@@ -67,7 +70,32 @@ namespace Dcrew.Framework
             return false;
         }
 
-        public static HashSet<T> Query(Rectangle area) => _mainNode.Query(area);
+        /// <summary>Call <see cref="Recycle(HashSet{T})"/> on the returned set when done with it</summary>
+        public static HashSet<T> Query(Rectangle area)
+        {
+            var result = _mainNode.Query(area);
+            _setsToRecycle.Add(result);
+            return result;
+        }
+        /// <summary>Call <see cref="Recycle(HashSet{T})"/> on the returned set when done with it</summary>
+        public static HashSet<T> Query(Vector2 pos)
+        {
+            var result = _mainNode.Query(new Rectangle(MGMath.Round(pos.X), MGMath.Round(pos.Y), 1, 1));
+            _setsToRecycle.Add(result);
+            return result;
+        }
+
+        public static void Recycle(HashSet<T> objs)
+        {
+            Pool<HashSet<T>>.Free(objs);
+            _setsToRecycle.Remove(objs);
+        }
+        public static void Recycle()
+        {
+            foreach (var set in _setsToRecycle)
+                Pool<HashSet<T>>.Free(set);
+            _setsToRecycle.Clear();
+        }
 
         public class Node : IPoolable
         {
@@ -150,7 +178,8 @@ namespace Dcrew.Framework
             }
             public HashSet<T> Query(Rectangle area)
             {
-                var items = new HashSet<T>();
+                var items = Pool<HashSet<T>>.Spawn();
+                items.Clear();
                 foreach (T item in _items)
                     if (area.Intersects(item.AABB))
                         items.Add(item);

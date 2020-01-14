@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Dcrews_Framework</RootNamespace>
-    <AssemblyVersion>0.16.0.3</AssemblyVersion>
+    <AssemblyVersion>0.16.0.4</AssemblyVersion>
     <FileVersion>1</FileVersion>
     <NeutralLanguage>en</NeutralLanguage>
     <RepositoryUrl>https://github.com/DeanReynolds/Dcrews-Framework</RepositoryUrl>
