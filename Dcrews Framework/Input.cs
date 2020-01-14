@@ -10,8 +10,8 @@ namespace Dcrew.Framework
         public static event MouseEvent OnMouseReleased;
 
         public static MouseState MouseState => _mouseState[_mouseUpdateIndex];
-        public static int MouseX => _mouseState[_mouseUpdateIndex].X;
-        public static int MouseY => _mouseState[_mouseUpdateIndex].Y;
+        public static float MouseX => MGGame._camera.MousePosition.X;
+        public static float MouseY => MGGame._camera.MousePosition.Y;
         public static int MouseVerticalScroll => _mouseState[_mouseUpdateIndex].ScrollWheelValue;
         public static int MouseHorizontalScroll => _mouseState[_mouseUpdateIndex].HorizontalScrollWheelValue;
         public static bool MouseHeld(MouseButton button) => MouseHeld(0, (int)button);
