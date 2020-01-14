@@ -1,20 +1,37 @@
 ﻿using Microsoft.Xna.Framework;
+using System;
 using System.Collections.Generic;
 
 namespace Dcrew.Framework
 {
-    public class QuadTree<T> where T : IAABB
+    public static class QuadTree<T> where T : IAABB
     {
-        readonly Node _mainNode;
-        readonly Dictionary<T, Node> _stored;
-
-        public QuadTree(Rectangle bounds)
+        public static Rectangle Bounds
         {
-            _mainNode = new Node(bounds);
-            _stored = new Dictionary<T, Node>();
+            get => _mainNode.Bounds;
+            set
+            {
+                if (_mainNode != null)
+                {
+                    var items = _mainNode.AllItems;
+                    _mainNode = Pool<Node>.Spawn();
+                    _mainNode.Bounds = value;
+                    foreach (var i in items)
+                        _mainNode.Add(i);
+                }
+                else
+                {
+                    _mainNode = Pool<Node>.Spawn();
+                    _mainNode.Bounds = value;
+                }
+            }
         }
 
-        public bool Add(T item)
+        public static readonly IDictionary<T, Node> _stored = new Dictionary<T, Node>();
+
+        static Node _mainNode;
+
+        public static bool Add(T item)
         {
             if (_stored.ContainsKey(item))
                 return false;
@@ -26,7 +43,7 @@ namespace Dcrew.Framework
             }
             return false;
         }
-        public bool Remove(T item)
+        public static bool Remove(T item)
         {
             if (!_stored.ContainsKey(item))
                 return false;
@@ -37,8 +54,7 @@ namespace Dcrew.Framework
             }
             return false;
         }
-
-        public bool Update(T item)
+        public static bool Update(T item)
         {
             if (!_stored.ContainsKey(item))
                 return false;
@@ -51,11 +67,11 @@ namespace Dcrew.Framework
             return false;
         }
 
-        public HashSet<T> Query(Rectangle area) => _mainNode.Query(area);
+        public static HashSet<T> Query(Rectangle area) => _mainNode.Query(area);
 
-        public class Node
+        public class Node : IPoolable
         {
-            public readonly Rectangle Bounds;
+            public Rectangle Bounds { get; internal set; }
 
             public bool IsEmpty => (_items.Count == 0) && (_nodes.Count == 0);
             public int AllCount
@@ -64,53 +80,60 @@ namespace Dcrew.Framework
                 {
                     int count = 0;
                     count += _items.Count;
-                    foreach (Node node in _nodes)
+                    foreach (var node in _nodes)
                         count += node.AllCount;
                     return count;
                 }
             }
-            public List<T> AllItems
+            public HashSet<T> AllItems
             {
                 get
                 {
-                    List<T> results = new List<T>();
-                    results.AddRange(_items);
-                    foreach (Node node in _nodes)
-                        results.AddRange(node.AllItems);
+                    var results = Pool<HashSet<T>>.Spawn();
+                    results.Clear();
+                    results.UnionWith(_items);
+                    foreach (var node in _nodes)
+                        results.UnionWith(node.AllItems);
                     return results;
                 }
             }
 
-            readonly HashSet<T> _items;
-            readonly List<Node> _nodes;
-
-            public Node(Rectangle bounds)
-            {
-                Bounds = bounds;
-                _items = new HashSet<T>();
-                _nodes = new List<Node>();
-            }
+            readonly HashSet<T> _items = Pool<HashSet<T>>.Spawn();
+            readonly List<Node> _nodes = Pool<List<Node>>.Spawn();
 
             public Node Add(T item)
             {
-                if (_items.Count > 4 || _nodes.Count > 0)
+                if (_items.Count >= 16 && _nodes.Count == 0 && Bounds.Width * Bounds.Height > 1024)
                 {
-                    if (_nodes.Count == 0)
+                    CreateSubNodes();
+                    var itemsToRemove = Pool<HashSet<T>>.Spawn();
+                    foreach (var i in _items)
                     {
-                        CreateSubNodes();
-                        foreach (var oItem in _items)
-                            Add(oItem);
-                        _items.Clear();
+                        var addedToANode = false;
+                        foreach (var node in _nodes)
+                            if (node.Bounds.Contains(i.AABB.Center))
+                            {
+                                Node node2;
+                                if ((node2 = node.Add(i)) != null)
+                                {
+                                    addedToANode = true;
+                                    _stored[i] = node2;
+                                }
+                                break;
+                            }
+                        if (addedToANode)
+                            itemsToRemove.Add(i);
                     }
-                    foreach (var node in _nodes)
-                        if (node.Bounds.Contains(item.AABB.Center))
-                        {
-                            Node node2;
-                            if ((node2 = node.Add(item)) != null)
-                                return node2;
-                            break;
-                        }
+                    foreach (var i in itemsToRemove)
+                        _items.Remove(i);
                 }
+                foreach (var node in _nodes)
+                    if (node.Bounds.Contains(item.AABB.Center))
+                    {
+                        Node node2;
+                        if ((node2 = node.Add(item)) != null)
+                            return node2;
+                    }
                 _items.Add(item);
                 return this;
             }
@@ -131,7 +154,7 @@ namespace Dcrew.Framework
                 foreach (T item in _items)
                     if (area.Intersects(item.AABB))
                         items.Add(item);
-                foreach (Node node in _nodes)
+                foreach (var node in _nodes)
                 {
                     if (node.Bounds.Contains(area))
                     {
@@ -153,12 +176,30 @@ namespace Dcrew.Framework
             {
                 if (Bounds.Height * Bounds.Width <= 1024)
                     return;
-                var halfWidth = Bounds.Width / 2;
-                var halfHeight = Bounds.Height / 2;
-                _nodes.Add(new Node(new Rectangle(Bounds.Location.X, Bounds.Location.Y, halfWidth, halfHeight)));
-                _nodes.Add(new Node(new Rectangle(Bounds.Left, Bounds.Top + halfHeight, halfWidth, halfHeight)));
-                _nodes.Add(new Node(new Rectangle(Bounds.Left + halfWidth, Bounds.Top, halfWidth, halfHeight)));
-                _nodes.Add(new Node(new Rectangle(Bounds.Left + halfWidth, Bounds.Top + halfHeight, halfWidth, halfHeight)));
+                int halfWidth = Bounds.Width / 2,
+                    halfHeight = Bounds.Height / 2;
+                var topLeft = Pool<Node>.Spawn();
+                topLeft.Bounds = new Rectangle(Bounds.Left, Bounds.Top, halfWidth, halfHeight);
+                _nodes.Add(topLeft);
+                var bottomLeft = Pool<Node>.Spawn();
+                int midY = Bounds.Top + halfHeight,
+                    height = Bounds.Bottom - midY;
+                bottomLeft.Bounds = new Rectangle(Bounds.Left, midY, halfWidth, height);
+                _nodes.Add(bottomLeft);
+                var topRight = Pool<Node>.Spawn();
+                int midX = Bounds.Left + halfWidth,
+                    width = Bounds.Right - midX;
+                topRight.Bounds = new Rectangle(midX, Bounds.Top, width, halfHeight);
+                _nodes.Add(topRight);
+                var bottomRight = Pool<Node>.Spawn();
+                bottomRight.Bounds = new Rectangle(midX, midY, width, height);
+                _nodes.Add(bottomRight);
+            }
+
+            public void Reset()
+            {
+                _items.Clear();
+                _nodes.Clear();
             }
         }
     }
