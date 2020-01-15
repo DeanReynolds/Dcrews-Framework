@@ -184,6 +184,10 @@ namespace Microsoft.Xna.Framework
         public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
         public static float Cos(float angle) => (float)Math.Cos(angle);
         public static float Sin(float angle) => (float)Math.Sin(angle);
+        public static int Ceil(float value) => (int)Math.Ceiling(value);
+        public static int Round(float value) => (int)Math.Round(value);
+        public static float Clamp(float value, float min, float max) => value > max ? max : value < min ? min : value;
+        public static int Clamp(int value, int min, int max) => value > max ? max : value < min ? min : value;
 
         public static Vector2 Move(ref Vector2 position, float angle, float velocity) => position += new Vector2(Cos(angle) * velocity, Sin(angle) * velocity);
         public static Vector2 Move(ref Vector2 position, Vector2 other, float velocity) => Move(ref position, Atan2(other.Y - position.Y, other.X - position.X), velocity);
