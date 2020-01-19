@@ -35,8 +35,6 @@ namespace Dcrew.Framework
 
         static Node _mainNode;
 
-        static readonly HashSet<HashSet<T>> _setsToRecycle = new HashSet<HashSet<T>>();
-
         public static bool Add(T item)
         {
             Node n;
@@ -58,171 +56,207 @@ namespace Dcrew.Framework
             Remove(item);
             Add(item);
         }
-
-        /// <summary>Call <see cref="Recycle(HashSet{T})"/> on the returned set when done with it</summary>
-        public static HashSet<T> Query(Rectangle area)
+        public static IEnumerable<T> Query(Rectangle area)
         {
-            var r = Pool<HashSet<T>>.Spawn();
-            r.Clear();
-            r.UnionWith(_mainNode.Query(area));
-            _setsToRecycle.Add(r);
-            return r;
+            foreach (var i in _mainNode.Query(area))
+                yield return i;
         }
-        /// <summary>Call <see cref="Recycle(HashSet{T})"/> on the returned set when done with it</summary>
-        public static HashSet<T> Query(Vector2 pos)
+        public static IEnumerable<T> Query(Vector2 pos)
         {
-            var r = Pool<HashSet<T>>.Spawn();
-            r.Clear();
-            r.UnionWith(_mainNode.Query(new Rectangle(MGMath.Round(pos.X), MGMath.Round(pos.Y), 1, 1)));
-            _setsToRecycle.Add(r);
-            return r;
-        }
-
-        public static void Recycle(HashSet<T> objs)
-        {
-            Pool<HashSet<T>>.Free(objs);
-            _setsToRecycle.Remove(objs);
-        }
-        public static void Recycle()
-        {
-            foreach (var set in _setsToRecycle)
-                Pool<HashSet<T>>.Free(set);
-            _setsToRecycle.Clear();
+            foreach (var i in _mainNode.Query(new Rectangle(MGMath.Round(pos.X), MGMath.Round(pos.Y), 1, 1)))
+                yield return i;
         }
 
         public class Node : IPoolable
         {
-            const int MAX_ITEMS = 16;
+            const int CAPACITY = 16;
 
             public Rectangle Bounds { get; internal set; }
 
-            public bool IsEmpty => _items.Count == 0 && _nodes.Count == 0;
             public int AllCount
             {
                 get
                 {
                     int c = _items.Count;
-                    foreach (var n in _nodes)
-                        c += n.AllCount;
+                    if (_nw != null)
+                    {
+                        c += _ne.AllCount;
+                        c += _se.AllCount;
+                        c += _sw.AllCount;
+                        c += _nw.AllCount;
+                    }
                     return c;
                 }
             }
-            public HashSet<T> AllItems
+            public IEnumerable<T> AllItems
             {
                 get
                 {
-                    _items2.Clear();
-                    _items2.UnionWith(_items);
-                    foreach (var n in _nodes)
-                        _items2.UnionWith(n.AllItems);
-                    return _items2;
+                    foreach (var i in _items)
+                        yield return i;
+                    if (_nw != null)
+                    {
+                        foreach (var i in _ne.AllItems)
+                            yield return i;
+                        foreach (var i in _se.AllItems)
+                            yield return i;
+                        foreach (var i in _sw.AllItems)
+                            yield return i;
+                        foreach (var i in _nw.AllItems)
+                            yield return i;
+                    }
+                }
+            }
+            public IEnumerable<T> AllSubItems
+            {
+                get
+                {
+                    foreach (var i in _ne.AllItems)
+                        yield return i;
+                    foreach (var i in _se.AllItems)
+                        yield return i;
+                    foreach (var i in _sw.AllItems)
+                        yield return i;
+                    foreach (var i in _nw.AllItems)
+                        yield return i;
                 }
             }
 
-            readonly HashSet<T> _items = new HashSet<T>(),
-                _items2 = new HashSet<T>();
-            readonly HashSet<Node> _nodes = new HashSet<Node>();
+            readonly HashSet<T> _items = new HashSet<T>();
 
             internal Node _parent;
 
+            Node _ne, _se, _sw, _nw;
 
             public Node Add(T item)
             {
                 Node n2;
-                if (_items.Count >= MAX_ITEMS && _nodes.Count == 0 && Bounds.Width * Bounds.Height > 1024)
+                Node MoveTo(T i, Node n)
                 {
-                    CreateSubNodes();
-                    _items2.Clear();
-                    foreach (var i in _items)
-                        foreach (var n in _nodes)
-                            if (n.Bounds.Contains(i.AABB.Center))
-                            {
-                                if ((n2 = n.Add(i)) != null)
-                                {
-                                    _items2.Add(i);
-                                    _stored[i] = n2;
-                                }
-                                break;
-                            }
-                    _items.ExceptWith(_items2);
+                    n2 = null;
+                    if (n.Bounds.Contains(i.AABB.Center))
+                        return n2 = n.Add(i);
+                    return n2;
                 }
-                foreach (var n in _nodes)
-                    if (n.Bounds.Contains(item.AABB.Center))
-                        if ((n2 = n.Add(item)) != null)
-                            return n2;
+                if (_nw == null)
+                    if (_items.Count >= CAPACITY && Bounds.Width * Bounds.Height > 1024)
+                    {
+                        Subdivide();
+                        foreach (var i in _items)
+                            if (MoveTo(i, _ne) != null || MoveTo(i, _se) != null || MoveTo(i, _sw) != null || MoveTo(i, _nw) != null)
+                                _stored[i] = n2;
+                        _items.Clear();
+                    }
+                    else
+                        goto add;
+                if (MoveTo(item, _ne) != null || MoveTo(item, _se) != null || MoveTo(item, _sw) != null || MoveTo(item, _nw) != null)
+                    return n2;
+                add:
                 _items.Add(item);
                 return this;
             }
             public void Remove(T item)
             {
                 _items.Remove(item);
-                if (_parent != null && _parent.AllCount < MAX_ITEMS)
+                if (_parent?._nw != null && _parent.AllCount < CAPACITY)
                 {
-                    var items = _parent.AllItems;
-                    foreach (var i in items)
+                    foreach (var i in _parent.AllSubItems)
                     {
                         _parent._items.Add(i);
                         _stored[i] = _parent;
                     }
-                    foreach (var n in _parent._nodes)
-                        Pool<Node>.Free(n);
-                    _parent._nodes.Clear();
+                    Pool<Node>.Free(_parent._ne);
+                    Pool<Node>.Free(_parent._se);
+                    Pool<Node>.Free(_parent._sw);
+                    Pool<Node>.Free(_parent._nw);
+                    _parent._ne = null;
+                    _parent._se = null;
+                    _parent._sw = null;
+                    _parent._nw = null;
                 }
             }
-            public HashSet<T> Query(Rectangle area)
+            public IEnumerable<T> Query(Rectangle area)
             {
-                _items2.Clear();
                 foreach (T i in _items)
                     if (area.Intersects(i.AABB))
-                        _items2.Add(i);
-                foreach (var n in _nodes)
+                        yield return i;
+                if (_nw == null)
+                    yield break;
+                if (_ne.Bounds.Contains(area))
                 {
-                    if (n.Bounds.Contains(area))
-                    {
-                        _items2.UnionWith(n.Query(area));
-                        break;
-                    }
-                    if (area.Contains(n.Bounds))
-                        _items2.UnionWith(n.AllItems);
-                    else if (n.Bounds.Intersects(area))
-                        _items2.UnionWith(n.Query(area));
+                    foreach (var i in _ne.Query(area))
+                        yield return i;
+                    yield break;
                 }
-                return _items2;
+                if (area.Contains(_ne.Bounds))
+                    foreach (var i in _ne.AllItems)
+                        yield return i;
+                else if (_ne.Bounds.Intersects(area))
+                    foreach (var i in _ne.Query(area))
+                        yield return i;
+                if (_se.Bounds.Contains(area))
+                {
+                    foreach (var i in _se.Query(area))
+                        yield return i;
+                    yield break;
+                }
+                if (area.Contains(_se.Bounds))
+                    foreach (var i in _se.AllItems)
+                        yield return i;
+                else if (_se.Bounds.Intersects(area))
+                    foreach (var i in _se.Query(area))
+                        yield return i;
+                if (_sw.Bounds.Contains(area))
+                {
+                    foreach (var i in _sw.Query(area))
+                        yield return i;
+                    yield break;
+                }
+                if (area.Contains(_sw.Bounds))
+                    foreach (var i in _sw.AllItems)
+                        yield return i;
+                else if (_sw.Bounds.Intersects(area))
+                    foreach (var i in _sw.Query(area))
+                        yield return i;
+                if (_nw.Bounds.Contains(area))
+                {
+                    foreach (var i in _nw.Query(area))
+                        yield return i;
+                    yield break;
+                }
+                if (area.Contains(_nw.Bounds))
+                    foreach (var i in _nw.AllItems)
+                        yield return i;
+                else if (_nw.Bounds.Intersects(area))
+                    foreach (var i in _nw.Query(area))
+                        yield return i;
             }
 
-            void CreateSubNodes()
+            void Subdivide()
             {
                 if (Bounds.Height * Bounds.Width <= 1024)
                     return;
                 int halfWidth = Bounds.Width / 2,
                     halfHeight = Bounds.Height / 2;
-                var topLeft = Pool<Node>.Spawn();
-                topLeft.Bounds = new Rectangle(Bounds.Left, Bounds.Top, halfWidth, halfHeight);
-                topLeft._parent = this;
-                _nodes.Add(topLeft);
-                var bottomLeft = Pool<Node>.Spawn();
+                _nw = Pool<Node>.Spawn();
+                _nw.Bounds = new Rectangle(Bounds.Left, Bounds.Top, halfWidth, halfHeight);
+                _nw._parent = this;
+                _sw = Pool<Node>.Spawn();
                 int midY = Bounds.Top + halfHeight,
                     height = Bounds.Bottom - midY;
-                bottomLeft.Bounds = new Rectangle(Bounds.Left, midY, halfWidth, height);
-                bottomLeft._parent = this;
-                _nodes.Add(bottomLeft);
-                var topRight = Pool<Node>.Spawn();
+                _sw.Bounds = new Rectangle(Bounds.Left, midY, halfWidth, height);
+                _sw._parent = this;
+                _ne = Pool<Node>.Spawn();
                 int midX = Bounds.Left + halfWidth,
                     width = Bounds.Right - midX;
-                topRight.Bounds = new Rectangle(midX, Bounds.Top, width, halfHeight);
-                topRight._parent = this;
-                _nodes.Add(topRight);
-                var bottomRight = Pool<Node>.Spawn();
-                bottomRight.Bounds = new Rectangle(midX, midY, width, height);
-                bottomRight._parent = this;
-                _nodes.Add(bottomRight);
+                _ne.Bounds = new Rectangle(midX, Bounds.Top, width, halfHeight);
+                _ne._parent = this;
+                _se = Pool<Node>.Spawn();
+                _se.Bounds = new Rectangle(midX, midY, width, height);
+                _se._parent = this;
             }
 
-            public void Reset()
-            {
-                _items.Clear();
-                _nodes.Clear();
-            }
+            public void Reset() => _items.Clear();
         }
     }
 }
