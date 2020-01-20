@@ -35,17 +35,7 @@ namespace Dcrew.Framework
 
         static Node _mainNode;
 
-        public static bool Add(T item)
-        {
-            Node n;
-            bool t = _stored.ContainsKey(item);
-            if ((n = _mainNode.Add(item)) != null)
-            {
-                _stored.Add(item, n);
-                return true;
-            }
-            return false;
-        }
+        public static void Add(T item) => _stored.Add(item, _mainNode.Add(item));
         public static void Remove(T item)
         {
             _stored[item].Remove(item);
@@ -69,7 +59,7 @@ namespace Dcrew.Framework
 
         public class Node : IPoolable
         {
-            const int CAPACITY = 16;
+            const int CAPACITY = 8;
 
             public Rectangle Bounds { get; internal set; }
 
@@ -141,7 +131,24 @@ namespace Dcrew.Framework
                 if (_nw == null)
                     if (_items.Count >= CAPACITY && Bounds.Width * Bounds.Height > 1024)
                     {
-                        Subdivide();
+                        int halfWidth = Bounds.Width / 2,
+                            halfHeight = Bounds.Height / 2;
+                        _nw = Pool<Node>.Spawn();
+                        _nw.Bounds = new Rectangle(Bounds.Left, Bounds.Top, halfWidth, halfHeight);
+                        _nw._parent = this;
+                        _sw = Pool<Node>.Spawn();
+                        int midY = Bounds.Top + halfHeight,
+                            height = Bounds.Bottom - midY;
+                        _sw.Bounds = new Rectangle(Bounds.Left, midY, halfWidth, height);
+                        _sw._parent = this;
+                        _ne = Pool<Node>.Spawn();
+                        int midX = Bounds.Left + halfWidth,
+                            width = Bounds.Right - midX;
+                        _ne.Bounds = new Rectangle(midX, Bounds.Top, width, halfHeight);
+                        _ne._parent = this;
+                        _se = Pool<Node>.Spawn();
+                        _se.Bounds = new Rectangle(midX, midY, width, height);
+                        _se._parent = this;
                         foreach (var i in _items)
                             if (MoveTo(i, _ne) != null || MoveTo(i, _se) != null || MoveTo(i, _sw) != null || MoveTo(i, _nw) != null)
                                 _stored[i] = n2;
@@ -230,30 +237,6 @@ namespace Dcrew.Framework
                 else if (_nw.Bounds.Intersects(area))
                     foreach (var i in _nw.Query(area))
                         yield return i;
-            }
-
-            void Subdivide()
-            {
-                if (Bounds.Height * Bounds.Width <= 1024)
-                    return;
-                int halfWidth = Bounds.Width / 2,
-                    halfHeight = Bounds.Height / 2;
-                _nw = Pool<Node>.Spawn();
-                _nw.Bounds = new Rectangle(Bounds.Left, Bounds.Top, halfWidth, halfHeight);
-                _nw._parent = this;
-                _sw = Pool<Node>.Spawn();
-                int midY = Bounds.Top + halfHeight,
-                    height = Bounds.Bottom - midY;
-                _sw.Bounds = new Rectangle(Bounds.Left, midY, halfWidth, height);
-                _sw._parent = this;
-                _ne = Pool<Node>.Spawn();
-                int midX = Bounds.Left + halfWidth,
-                    width = Bounds.Right - midX;
-                _ne.Bounds = new Rectangle(midX, Bounds.Top, width, halfHeight);
-                _ne._parent = this;
-                _se = Pool<Node>.Spawn();
-                _se.Bounds = new Rectangle(midX, midY, width, height);
-                _se._parent = this;
             }
 
             public void Reset() => _items.Clear();
