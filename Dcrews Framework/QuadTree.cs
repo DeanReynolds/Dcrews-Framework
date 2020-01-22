@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -34,26 +35,41 @@ namespace Dcrew.Framework
         public static readonly IDictionary<T, Node> _stored = new Dictionary<T, Node>();
 
         static Node _mainNode;
+        static (T Item, Point HalfSize, Point Size) _maxSizeAABB;
 
-        public static void Add(T item) => _stored.Add(item, _mainNode.Add(item));
+        public static void Add(T item)
+        {
+            _stored.Add(item, _mainNode.Add(item));
+            if (item.AABB.Width > _maxSizeAABB.Size.X || item.AABB.Height > _maxSizeAABB.Size.Y)
+                _maxSizeAABB = (item, new Point(MGMath.Ceil(item.AABB.Width / 2f), MGMath.Ceil(item.AABB.Height / 2f)), new Point(item.AABB.Width, item.AABB.Height));
+        }
         public static void Remove(T item)
         {
             _stored[item].Remove(item);
             _stored.Remove(item);
         }
+        public static void Clear()
+        {
+            var items = _stored.Keys.ToArray();
+            foreach (var i in items)
+                _stored[i].Remove(i);
+            _stored.Clear();
+            _maxSizeAABB = (default(T), Point.Zero, Point.Zero);
+        }
         public static void Update(T item)
         {
-            Remove(item);
-            Add(item);
+            _stored[item].Remove(item);
+            _stored[item] = _mainNode.Add(item);
         }
         public static IEnumerable<T> Query(Rectangle area)
         {
-            foreach (var i in _mainNode.Query(area))
+            foreach (var i in _mainNode.Query(new Rectangle(area.X - _maxSizeAABB.HalfSize.X, area.Y - _maxSizeAABB.HalfSize.Y, _maxSizeAABB.Size.X + area.Width, _maxSizeAABB.Size.Y + area.Height), area))
                 yield return i;
         }
         public static IEnumerable<T> Query(Vector2 pos)
         {
-            foreach (var i in _mainNode.Query(new Rectangle(MGMath.Round(pos.X), MGMath.Round(pos.Y), 1, 1)))
+            foreach (var i in _mainNode.Query(new Rectangle(MGMath.Round(pos.X - _maxSizeAABB.HalfSize.X), MGMath.Round(pos.Y - _maxSizeAABB.HalfSize.Y), _maxSizeAABB.Size.X + 1, _maxSizeAABB.Size
+                .Y + 1), new Rectangle(MGMath.Round(pos.X), MGMath.Round(pos.Y), 1, 1)))
                 yield return i;
         }
 
@@ -182,60 +198,60 @@ namespace Dcrew.Framework
                     _parent._nw = null;
                 }
             }
-            public IEnumerable<T> Query(Rectangle area)
+            public IEnumerable<T> Query(Rectangle broad, Rectangle query)
             {
                 foreach (T i in _items)
-                    if (area.Intersects(i.AABB))
+                    if (query.Intersects(i.AABB))
                         yield return i;
                 if (_nw == null)
                     yield break;
-                if (_ne.Bounds.Contains(area))
+                if (_ne.Bounds.Contains(broad))
                 {
-                    foreach (var i in _ne.Query(area))
+                    foreach (var i in _ne.Query(broad, query))
                         yield return i;
                     yield break;
                 }
-                if (area.Contains(_ne.Bounds))
+                if (broad.Contains(_ne.Bounds))
                     foreach (var i in _ne.AllItems)
                         yield return i;
-                else if (_ne.Bounds.Intersects(area))
-                    foreach (var i in _ne.Query(area))
+                else if (_ne.Bounds.Intersects(broad))
+                    foreach (var i in _ne.Query(broad, query))
                         yield return i;
-                if (_se.Bounds.Contains(area))
+                if (_se.Bounds.Contains(broad))
                 {
-                    foreach (var i in _se.Query(area))
+                    foreach (var i in _se.Query(broad, query))
                         yield return i;
                     yield break;
                 }
-                if (area.Contains(_se.Bounds))
+                if (broad.Contains(_se.Bounds))
                     foreach (var i in _se.AllItems)
                         yield return i;
-                else if (_se.Bounds.Intersects(area))
-                    foreach (var i in _se.Query(area))
+                else if (_se.Bounds.Intersects(broad))
+                    foreach (var i in _se.Query(broad, query))
                         yield return i;
-                if (_sw.Bounds.Contains(area))
+                if (_sw.Bounds.Contains(broad))
                 {
-                    foreach (var i in _sw.Query(area))
+                    foreach (var i in _sw.Query(broad, query))
                         yield return i;
                     yield break;
                 }
-                if (area.Contains(_sw.Bounds))
+                if (broad.Contains(_sw.Bounds))
                     foreach (var i in _sw.AllItems)
                         yield return i;
-                else if (_sw.Bounds.Intersects(area))
-                    foreach (var i in _sw.Query(area))
+                else if (_sw.Bounds.Intersects(broad))
+                    foreach (var i in _sw.Query(broad, query))
                         yield return i;
-                if (_nw.Bounds.Contains(area))
+                if (_nw.Bounds.Contains(broad))
                 {
-                    foreach (var i in _nw.Query(area))
+                    foreach (var i in _nw.Query(broad, query))
                         yield return i;
                     yield break;
                 }
-                if (area.Contains(_nw.Bounds))
+                if (broad.Contains(_nw.Bounds))
                     foreach (var i in _nw.AllItems)
                         yield return i;
-                else if (_nw.Bounds.Intersects(area))
-                    foreach (var i in _nw.Query(area))
+                else if (_nw.Bounds.Intersects(broad))
+                    foreach (var i in _nw.Query(broad, query))
                         yield return i;
             }
 
