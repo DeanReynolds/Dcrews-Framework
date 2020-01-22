@@ -1,5 +1,4 @@
 ﻿using Microsoft.Xna.Framework;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -16,8 +15,8 @@ namespace Dcrew.Framework
                 if (_mainNode != null)
                 {
                     var items = _stored.Keys.ToArray();
-                    Pool<Node>.Free(_mainNode);
-                    _mainNode = Pool<Node>.Spawn();
+                    _mainNode.FreeSubNodes();
+                    _mainNode.Reset();
                     _mainNode.Bounds = value;
                     foreach (var i in items)
                         _stored[i] = _mainNode.Add(i);
@@ -25,10 +24,10 @@ namespace Dcrew.Framework
                 else
                 {
                     _mainNode = Pool<Node>.Spawn();
+                    _mainNode._parent = null;
                     _mainNode.Bounds = value;
                 }
-                _mainNode._parent = null;
-                Pool<Node>.EnsureSize(MGMath.Ceil(_mainNode.Bounds.Width / 32f * _mainNode.Bounds.Height / 32f));
+                Pool<Node>.EnsureSize(MGMath.Ceil(value.Width / 32f * value.Height / 32f));
             }
         }
 
@@ -50,9 +49,8 @@ namespace Dcrew.Framework
         }
         public static void Clear()
         {
-            var items = _stored.Keys.ToArray();
-            foreach (var i in items)
-                _stored[i].Remove(i);
+            _mainNode.FreeSubNodes();
+            _mainNode.Reset();
             _stored.Clear();
             _maxSizeAABB = (default(T), Point.Zero, Point.Zero);
         }
@@ -130,19 +128,21 @@ namespace Dcrew.Framework
 
             readonly HashSet<T> _items = new HashSet<T>();
 
-            internal Node _parent;
-
-            Node _ne, _se, _sw, _nw;
+            internal Node _parent, _ne, _se, _sw, _nw;
 
             public Node Add(T item)
             {
-                Node n2;
-                Node MoveTo(T i, Node n)
+                Node Bury(T i, Node n)
                 {
-                    n2 = null;
-                    if (n.Bounds.Contains(i.AABB.Center))
-                        return n2 = n.Add(i);
-                    return n2;
+                    if (n._ne.Bounds.Contains(i.AABB.Center))
+                        return n._ne.Add(i);
+                    if (n._se.Bounds.Contains(i.AABB.Center))
+                        return n._se.Add(i);
+                    if (n._sw.Bounds.Contains(i.AABB.Center))
+                        return n._sw.Add(i);
+                    if (n._nw.Bounds.Contains(i.AABB.Center))
+                        return n._nw.Add(i);
+                    return n;
                 }
                 if (_nw == null)
                     if (_items.Count >= CAPACITY && Bounds.Width * Bounds.Height > 1024)
@@ -166,14 +166,12 @@ namespace Dcrew.Framework
                         _se.Bounds = new Rectangle(midX, midY, width, height);
                         _se._parent = this;
                         foreach (var i in _items)
-                            if (MoveTo(i, _ne) != null || MoveTo(i, _se) != null || MoveTo(i, _sw) != null || MoveTo(i, _nw) != null)
-                                _stored[i] = n2;
+                            _stored[i] = Bury(i, this);
                         _items.Clear();
                     }
                     else
                         goto add;
-                if (MoveTo(item, _ne) != null || MoveTo(item, _se) != null || MoveTo(item, _sw) != null || MoveTo(item, _nw) != null)
-                    return n2;
+                return Bury(item, this);
                 add:
                 _items.Add(item);
                 return this;
@@ -200,11 +198,13 @@ namespace Dcrew.Framework
             }
             public IEnumerable<T> Query(Rectangle broad, Rectangle query)
             {
-                foreach (T i in _items)
-                    if (query.Intersects(i.AABB))
-                        yield return i;
                 if (_nw == null)
+                {
+                    foreach (T i in _items)
+                        if (query.Intersects(i.AABB))
+                            yield return i;
                     yield break;
+                }
                 if (_ne.Bounds.Contains(broad))
                 {
                     foreach (var i in _ne.Query(broad, query))
@@ -256,6 +256,24 @@ namespace Dcrew.Framework
             }
 
             public void Reset() => _items.Clear();
+
+            internal void FreeSubNodes()
+            {
+                if (_nw == null)
+                    return;
+                _ne.FreeSubNodes();
+                _se.FreeSubNodes();
+                _sw.FreeSubNodes();
+                _nw.FreeSubNodes();
+                Pool<Node>.Free(_ne);
+                Pool<Node>.Free(_se);
+                Pool<Node>.Free(_sw);
+                Pool<Node>.Free(_nw);
+                _ne = null;
+                _se = null;
+                _sw = null;
+                _nw = null;
+            }
         }
     }
 }
